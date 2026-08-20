@@ -17,7 +17,11 @@ const fs = require("fs");
 const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..");
-const OUT = path.join(ROOT, "سامانه-تعیین-ساختار.html");
+/* نامِ خروجی لاتین است، هم‌راستا با Spectra.apk و برچسبِ لانچر.
+   پیش‌تر «سامانه-تعیین-ساختار.html» بود و کاربر فایل را دستی به این نام
+   عوض می‌کرد؛ نتیجه‌اش این می‌شد که ساختِ بعدی یک فایلِ دومِ تازه
+   می‌ساخت و نسخهٔ تغییرنام‌داده بی‌صدا کهنه می‌ماند. */
+const OUT = path.join(ROOT, "Spectra - Desktop.html");
 
 const MIME = {
   ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
