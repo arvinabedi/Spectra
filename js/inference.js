@@ -409,6 +409,75 @@
        ring: true                    میان‌بر: زنجیرهٔ خطی + بستنِ حلقه
      اگر هیچ‌کدام نبود، همان زنجیرهٔ خطی فرض می‌شود، پس همهٔ دادهٔ موجود
      بی‌تغییر کار می‌کند. */
+  /* استنتاجِ توپولوژی از آرایهٔ خطی، با شمارشِ ظرفیتِ اتصالِ بلوک‌ها.
+     چرا لازم است: آرایهٔ chain «توالیِ استخلاف‌ها» را می‌نویسد، نه اتصال را.
+     خواندنِ سرِ‌به‌سر (۰-۱، ۱-۲، …) برای مولکولِ خطی درست است ولی روی حلقهٔ
+     چنداستخلافی استخلافِ دوم را به استخلافِ اول می‌چسباند به‌جای حلقه.
+
+     قاعده — همان چیزی که این آرایه‌ها با آن نوشته شده‌اند:
+       • حلقه (اگر دقیقاً یکی باشد) قطبِ اتصال است و ظرفیتش نامحدود فرض
+         می‌شود، چون بلوک‌های حلقه موقعیت‌های حلقه را مدل نمی‌کنند
+         (phenyl با slots=1 در عمل سه استخلاف می‌گیرد).
+       • بقیه به‌ترتیب خوانده می‌شوند و هرکدام به نزدیک‌ترین بلوکِ پیشین که
+         ظرفیتِ آزاد دارد وصل می‌شود (پشته)، وگرنه به قطب.
+         terminal=۱، linker=۲، branch=۳ ظرفیت دارند.
+
+     نمونهٔ گویا — ۱-فنیل‌اتانول [phenyl, ch, hydroxyl, methyl]:
+       ch به حلقه، هیدروکسیل به ch، و متیل هم به ch (که یک ظرفیتِ آزاد
+       دارد) — یعنی Ph–CH(OH)CH₃. خواندنِ خطی متیل را به هیدروکسیل
+       می‌بست و خواندنِ ستاره‌ایِ ساده به حلقه.
+
+     محافظه‌کار است: بی‌حلقه یا چندحلقه‌ای، یا هر بلوکی که والدی پیدا نکند،
+     یعنی زنجیره تقریبی است → null و بازگشت به خواندنِ خطی. */
+  /* از فهرستِ یگانهٔ پایگاه خوانده می‌شود (DB.aromaticRingBlocks)؛ نسخهٔ
+     درون‌خطی فقط پشتیبانِ حالتی است که فایلِ افزوده بارگذاری نشده باشد. */
+  const RING_HUBS_FALLBACK = ["phenyl", "phenylene_p", "phenylene_o", "phenylene_m",
+                              "tolyl_p", "naphthyl", "quinolinyl", "pyridin_3yl", "furan_2yl"];
+  function ringHubs() {
+    return (DB.aromaticRingBlocks || RING_HUBS_FALLBACK).concat(["benzyl"]);
+  }
+  function inferTopology(chain, isRing) {
+    const n = chain.length;
+    if (isRing || n < 3) return null;                  // حلقهٔ اعلام‌شده مسیرِ خودش را دارد
+    const hubs = [];
+    const RING_HUBS = ringHubs();
+    chain.forEach((id, i) => { if (RING_HUBS.includes(id)) hubs.push(i); });
+    if (hubs.length !== 1) return null;                // بی‌حلقه یا چندحلقه‌ای → مبهم
+    const hub = hubs[0];
+    const blockById = new Map((DB.blocks || []).map(b => [b.id, b]));
+    const hubBlock = blockById.get(chain[hub]);
+    if (!hubBlock) return null;
+    /* ظرفیتِ قطب همان چیزی است که بلوک اعلام کرده، نه بی‌نهایت. همین قید
+       تعیین‌کننده است: `phenyl` با slots=1 یعنی نویسندهٔ داده فقط یک
+       استخلافِ حلقه در نظر داشته. اگر بیش از آن بخواهد به حلقه بچسبد،
+       یعنی زنجیره تقریبی است و حدس‌زدن خطرناک.
+       نمونهٔ واقعی: ۲-فنیل‌اتانول [phenyl, ethyl, hydroxyl]. بلوکِ ethyl
+       انتهایی است و نمی‌تواند OH را بگیرد، پس OH به حلقه می‌افتاد و
+       ترکیب «فنول» خوانده می‌شد — در حالی که الکلِ نوع اول است. با احترام
+       به ظرفیتِ حلقه، استنتاج کنار می‌کشد و خواندنِ خطی (OH روی اتیل)
+       که این‌جا درست است جای می‌گیرد. */
+    let hubFree = hubBlock.slots || 1;
+    const bonds = [];
+    const stack = [];                       // نقاطِ اتصالِ باز: {i, free}
+    for (let i = 0; i < n; i++) {
+      if (i === hub) continue;
+      while (stack.length && stack[stack.length - 1].free <= 0) stack.pop();
+      const parent = stack.length ? stack[stack.length - 1] : null;
+      if (parent) { parent.free -= 1; bonds.push([parent.i, i]); }
+      else {
+        if (hubFree <= 0) return null;      // حلقه جا ندارد → زنجیره تقریبی است
+        hubFree -= 1;
+        bonds.push([hub, i]);
+      }
+      const b = blockById.get(chain[i]);
+      if (!b) return null;
+      const slots = b.slots || 1;
+      if (slots > 1) stack.push({ i, free: slots - 1 });
+    }
+    if (bonds.length !== n - 1) return null;
+    return bonds;
+  }
+
   const topoCache = new WeakMap();
   function topology(ref) {
     if (topoCache.has(ref)) return topoCache.get(ref);
@@ -423,8 +492,12 @@
     if (Array.isArray(ref.bonds) && ref.bonds.length) {
       ref.bonds.forEach(pair => { if (Array.isArray(pair)) link(pair[0], pair[1]); });
     } else {
-      for (let i = 0; i < n - 1; i++) link(i, i + 1);
-      if (ref.ring && n > 2) link(n - 1, 0);
+      const inferred = inferTopology(chain, !!ref.ring);
+      if (inferred) inferred.forEach(pair => link(pair[0], pair[1]));
+      else {
+        for (let i = 0; i < n - 1; i++) link(i, i + 1);      // خطیِ ساده
+        if (ref.ring && n > 2) link(n - 1, 0);
+      }
     }
     topoCache.set(ref, adj);
     return adj;
@@ -693,7 +766,7 @@
 
   const API = {
     deriveFromMass, massToFormulas, deriveFromAtoms, parseFormula, formulaString,
-    impliedEvidence, topology, neighboursOf,   // بیرون‌داده برای ابزارهای ممیزی (tools/) atomsMass,
+    impliedEvidence, topology, neighboursOf, inferTopology,   // بیرون‌داده برای ابزارهای ممیزی (tools/) atomsMass,
     collectEvidence, detectCore, assemble, matchReferences, connectivityScore,
     detectContradictions, detectExamTraps, predictSymmetry, analyze
   };

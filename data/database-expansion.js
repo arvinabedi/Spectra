@@ -74,6 +74,40 @@
     // --- نیتروژنِ آمینِ نوع سوم، بدونِ هیچ کربن. بلوکِ amine3_dimethyl دو
     // کربنِ خودش را می‌آورد، پس برای تری‌اتیل‌آمین (که سه اتیلِ جدا دارد)
     // زنجیره را دو کربن بیش‌شمار می‌کرد ---
+    /* --- حلقه‌های بنزنِ چنداستخلافی. واژگانِ بلوک تا اینجا فقط تک‌استخلافی
+       (phenyl، C₆H₅) و دواستخلافی (phenylene_*، C₆H₄) داشت، پس مزیتیلن و
+       تری/تتراـمتیل‌بنزن‌ها ناچار با phenyl نوشته می‌شدند و هیدروژنِ حلقه
+       یکی‌دو واحد بیشتر از فرمول می‌شد. هر استخلافِ اضافه یک H کم می‌کند. --- */
+    /* الگویِ استخلاف اطلاعاتِ تشخیصیِ واقعی است — همان چیزی که دانشجو از
+       الگویِ پروتونِ آروماتیک تعیین می‌کند — پس گونهٔ بی‌الگو تنها زمانی
+       به‌کار می‌رود که نامِ ترکیب الگو را نگوید. با گونهٔ عمومیِ تنها،
+       ۱،۲،۳- و ۱،۲،۴-تری‌متیل‌بنزن یکسان می‌شدند و موتور از تفکیکشان
+       ناتوان می‌ماند. شمارِ محیطِ کربنی هر الگو هم متفاوت است. */
+    { id: "benzene_tri", fa: "بنزنِ سه‌استخلافی (الگو نامعلوم)", en: "-C₆H₃<", atoms: { C: 6, H: 3 },
+      slots: 3, ihd: 4, kind: "branch", display: "C₆H₃", evidence: ["ir_aromatic", "h_ar", "c_sp2"] },
+    { id: "benzene_123", fa: "بنزنِ ۱،۲،۳-سه‌استخلافی (وی‌سینال)", en: "-C₆H₃< (1,2,3)", atoms: { C: 6, H: 3 },
+      slots: 3, ihd: 4, kind: "branch", display: "1,2,3", evidence: ["ir_aromatic", "h_ar", "c_sp2", "ir_ortho"] },
+    { id: "benzene_124", fa: "بنزنِ ۱،۲،۴-سه‌استخلافی (نامتقارن)", en: "-C₆H₃< (1,2,4)", atoms: { C: 6, H: 3 },
+      slots: 3, ihd: 4, kind: "branch", display: "1,2,4", evidence: ["ir_aromatic", "h_ar", "c_sp2", "h_ar_meta"] },
+    { id: "benzene_135", fa: "بنزنِ ۱،۳،۵-سه‌استخلافی (متقارن)", en: "-C₆H₃< (1,3,5)", atoms: { C: 6, H: 3 },
+      slots: 3, ihd: 4, kind: "branch", display: "1,3,5", evidence: ["ir_aromatic", "h_ar", "c_sp2", "h_ar_meta"] },
+    { id: "benzene_tetra", fa: "بنزنِ چهاراستخلافی (الگو نامعلوم)", en: "-C₆H₂<", atoms: { C: 6, H: 2 },
+      slots: 4, ihd: 4, kind: "branch", display: "C₆H₂", evidence: ["ir_aromatic", "h_ar", "c_sp2"] },
+    { id: "benzene_1234", fa: "بنزنِ ۱،۲،۳،۴-چهاراستخلافی", en: "-C₆H₂< (1,2,3,4)", atoms: { C: 6, H: 2 },
+      slots: 4, ihd: 4, kind: "branch", display: "1,2,3,4", evidence: ["ir_aromatic", "h_ar", "c_sp2", "ir_ortho"] },
+    { id: "benzene_1235", fa: "بنزنِ ۱،۲،۳،۵-چهاراستخلافی", en: "-C₆H₂< (1,2,3,5)", atoms: { C: 6, H: 2 },
+      slots: 4, ihd: 4, kind: "branch", display: "1,2,3,5", evidence: ["ir_aromatic", "h_ar", "c_sp2"] },
+    { id: "benzene_1245", fa: "بنزنِ ۱،۲،۴،۵-چهاراستخلافی (پارا-دوگانه)", en: "-C₆H₂< (1,2,4,5)", atoms: { C: 6, H: 2 },
+      slots: 4, ihd: 4, kind: "branch", display: "1,2,4,5", evidence: ["ir_aromatic", "h_ar", "c_sp2"] },
+    { id: "benzene_penta", fa: "بنزنِ پنج‌استخلافی", en: "-C₆H<", atoms: { C: 6, H: 1 },
+      slots: 5, ihd: 4, kind: "branch", display: "C₆H", evidence: ["ir_aromatic", "h_ar", "c_sp2"] },
+    { id: "benzene_hexa", fa: "بنزنِ شش‌استخلافی", en: "-C₆<", atoms: { C: 6 },
+      slots: 6, ihd: 4, kind: "branch", display: "C₆", evidence: ["ir_aromatic", "c_sp2"] },
+    // --- کربنِ چهاراتصالی. بلوکِ ch سه ظرفیت دارد و برای مرکزهایی مثل
+    // بنزیلیک اسید (دو فنیل + OH + COOH روی یک کربن) کافی نبود؛ آن ساختار
+    // تا کنون قابلِ بیان نبود و زنجیره‌اش ناچار تقریبی می‌ماند. ---
+    { id: "cq", fa: "کربن چهاراتصالی (کواترنر)", en: ">C<", atoms: { C: 1 },
+      slots: 4, ihd: 0, kind: "branch", display: "C", evidence: [] },
     { id: "amine3", fa: "آمین نوع سوم (نیتروژنِ سه‌شاخه)", en: "-N<", atoms: { N: 1 },
       slots: 3, ihd: 0, kind: "branch", display: "N", evidence: ["wet_hinsberg_3"] },
     // --- کینولین: حلقهٔ جوش‌خوردهٔ بنزن+پیریدین. با ترکیبِ دو بلوکِ جدا
@@ -119,6 +153,17 @@
     fluorenyl_co:    ["c_ketone"],
     formate:         ["c_ester", "ir_co_ester", "ir_co_single", "h_ald"],
     amine3:          ["wet_hinsberg_3", "wet_sol_b"],
+    cq:              ["c_alkyl"],
+    benzene_tri:     ["h_ar", "c_sp2", "ir_aromatic"],
+    benzene_123:     ["h_ar", "c_sp2", "ir_aromatic", "ir_ortho"],
+    benzene_124:     ["h_ar", "c_sp2", "ir_aromatic", "h_ar_meta"],
+    benzene_135:     ["h_ar", "c_sp2", "ir_aromatic", "h_ar_meta"],
+    benzene_tetra:   ["h_ar", "c_sp2", "ir_aromatic"],
+    benzene_1234:    ["h_ar", "c_sp2", "ir_aromatic", "ir_ortho"],
+    benzene_1235:    ["h_ar", "c_sp2", "ir_aromatic"],
+    benzene_1245:    ["h_ar", "c_sp2", "ir_aromatic"],
+    benzene_penta:   ["h_ar", "c_sp2", "ir_aromatic", "wet_lerosen_pos"],
+    benzene_hexa:    ["c_sp2", "ir_aromatic", "wet_lerosen_pos"],
     quinolinyl:      ["h_ar", "c_sp2", "ir_aromatic", "ir_cn_ring", "wet_elem_n"],
     // بلوک‌هایی که در فایل‌های قبلی اضافه شده بودند و جدولِ شواهد ضمنی نداشتند
     anhydride:       ["c_ester", "ir_anhydride"],
@@ -157,17 +202,23 @@
      اینجا از خودِ ساختار نتیجه گرفته می‌شود: هر گروهِ عاملی، نتیجهٔ
      تست‌های کلاسیکِ خودش را قطعی می‌کند.
      ================================================================== */
+  /* فهرستِ یگانهٔ بلوک‌های حلقهٔ آروماتیک.
+     پیش‌تر این فهرست در پنج‌شش جا تکرار شده بود و افزودنِ حلقهٔ تازه یعنی
+     یادآوردنِ همهٔ آن‌ها. یک‌بار که یادم رفت، تیمول (فنول) با حلقهٔ تازهٔ
+     benzene_tri دیگر «فنول» شناخته نشد و لوکاسِ نادرست گرفت. حالا همهٔ
+     قواعد و موتور و ابزارِ ممیزی از همین یک فهرست می‌خوانند. */
+  DB.aromaticRingBlocks = [
+    "phenyl", "phenylene_p", "phenylene_o", "phenylene_m", "tolyl_p",
+    "benzene_tri", "benzene_123", "benzene_124", "benzene_135",
+    "benzene_tetra", "benzene_1234", "benzene_1235", "benzene_1245",
+    "benzene_penta", "benzene_hexa",
+    "naphthyl", "quinolinyl", "pyridin_3yl", "furan_2yl"
+  ];
+  var AROM = DB.aromaticRingBlocks;
+  // زیرمجموعهٔ «حلقهٔ هیدروکربنی» برای تست‌هایی که به هترو-حلقه تعمیم ندارند
+  var AROM_CX = AROM.filter(function (x) { return x !== "pyridin_3yl" && x !== "furan_2yl" && x !== "quinolinyl"; });
+
   var TEST_IMPLIED = {
-    // تستِ لِروزِن (فرمالدهید/H₂SO₄) رنگِ حلقهٔ آروماتیک را می‌دهد
-    phenyl:          ["wet_lerosen_pos"],
-    benzyl:          ["wet_lerosen_pos"],
-    phenylene_p:     ["wet_lerosen_pos"],
-    phenylene_o:     ["wet_lerosen_pos"],
-    phenylene_m:     ["wet_lerosen_pos"],
-    tolyl_p:         ["wet_lerosen_pos"],
-    naphthyl:        ["wet_lerosen_pos"],
-    quinolinyl:      ["wet_lerosen_pos"],
-    pyridin_3yl:     ["wet_lerosen_pos"],
     cooh:            ["wet_bicarb_pos", "wet_sol_a1"],
     // تست‌های کربونیلِ aldehyde/ketone/acyl/propanoyl این‌جا نیستند:
     // به همسایه بستگی دارند (پایین، contextualEvidenceRules).
@@ -190,6 +241,11 @@
     anhydride:       ["wet_hydroxamic_pos"],
     acidchloride:    ["wet_beilstein_pos"]
   };
+  // تستِ لِروزِن (فرمالدهید/H₂SO₄) رنگِ هر حلقهٔ آروماتیک را می‌دهد —
+  // از فهرستِ یگانه، تا حلقهٔ تازه‌ای جا نیفتد
+  AROM.concat(["benzyl"]).forEach(function (id) {
+    TEST_IMPLIED[id] = (TEST_IMPLIED[id] || []).concat(["wet_lerosen_pos"]);
+  });
   if (DB.blockImpliedEvidence) {
     Object.keys(TEST_IMPLIED).forEach(function (k) {
       var cur = DB.blockImpliedEvidence[k] || [];
@@ -215,13 +271,13 @@
        ۲-هیدروکسی‌سیکلوهگزن-۱-اونِ انولی «لوکاس» می‌گرفت که غلط است.) */
     { block: "hydroxyl",
       cases: [
-        { near: ["phenyl", "phenylene_p", "phenylene_o", "phenylene_m", "tolyl_p",
-                 "naphthyl", "quinolinyl", "pyridin_3yl", "furan_2yl"],
-          tags: ["wet_fecl3_pos", "wet_sol_a2"] },
+        { near: AROM, tags: ["wet_fecl3_pos", "wet_sol_a2"] },
         { near: ["ketone", "aldehyde", "acyl", "propanoyl"],
           tags: ["wet_fecl3_pos"] },
+        // benzyl (–CH₂C₆H₅) هم کربنِ sp³ است: الکلِ بنزیلی، نه فنول.
+        // جاافتادنش باعث می‌شد الکلِ بنزیلی هیچ تستی نگیرد.
         { near: ["methyl", "ethyl", "npropyl", "butyl", "isopropyl", "tbutyl",
-                 "ch2", "ch", "hydroxyl", "ether_o", "vinyl"],
+                 "ch2", "ch", "cq", "hydroxyl", "ether_o", "vinyl", "benzyl"],
           tags: ["wet_lucas_any", "wet_can_pos"] }
       ],
       fa: "فنول (روی حلقه) / انول (مجاور کربونیل) / الکل (روی زنجیره) — سه نتیجهٔ تستِ متفاوت از یک بلوک" },
@@ -257,13 +313,13 @@
     /* نیتراتِ نقرهٔ الکلی، فعالیتِ هالید را می‌سنجد نه فقط حضورش:
        هالیدِ روی حلقهٔ آروماتیک حتی با گرم‌کردن رسوب نمی‌دهد (پیوندِ C–X با
        خصلتِ دوگانه)، در حالی که هالیدِ بنزیلی/آلیلی/۳° فوری رسوب می‌دهد. */
-    { block: "bromo", near: ["phenyl", "phenylene_p", "phenylene_o", "phenylene_m", "tolyl_p", "naphthyl"],
+    { block: "bromo", near: AROM_CX,
       tags: ["wet_agno3_1"], elseTags: ["wet_agno3_3"],
       fa: "برمِ روی حلقه = هالیدِ آریلی (بدونِ رسوب)؛ برمِ روی زنجیره = هالیدِ فعال (رسوبِ سریع)" },
-    { block: "chloro", near: ["phenyl", "phenylene_p", "phenylene_o", "phenylene_m", "tolyl_p", "naphthyl"],
+    { block: "chloro", near: AROM_CX,
       tags: ["wet_agno3_1"], elseTags: ["wet_agno3_3"],
       fa: "همان قاعده برای کلر" },
-    { block: "iodo", near: ["phenyl", "phenylene_p", "phenylene_o", "phenylene_m", "tolyl_p", "naphthyl"],
+    { block: "iodo", near: AROM_CX,
       tags: ["wet_agno3_1"], elseTags: ["wet_agno3_3"],
       fa: "همان قاعده برای ید" },
 
@@ -275,7 +331,7 @@
       fa: "کربونیلِ آمیدی درونِ زنجیرهٔ اسید آمینه = پیوندِ پپتیدی؛ بیوره مثبت" },
 
     { block: "amine1",
-      near: ["phenyl", "phenylene_p", "phenylene_o", "phenylene_m", "tolyl_p", "naphthyl"],
+      near: AROM_CX,
       tags: ["wet_hno2_1ar"], elseTags: ["wet_hno2_1al"],
       fa: "آمینِ نوع اولِ آروماتیک با HNO₂ نمکِ دیازونیومِ پایدار می‌دهد؛ آلیفاتیک حبابِ N₂ آزاد می‌کند" }
   ]);

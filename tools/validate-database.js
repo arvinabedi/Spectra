@@ -283,27 +283,56 @@ compounds.forEach(({ rec, src }) => {
     err("[" + src + "] «" + name + "» گرافِ اتصالش یک‌پارچه نیست: " + (n - seenN.size) + " بلوک جدا مانده.");
 });
 
-/* نامزدهای مهاجرت: حلقهٔ آروماتیک با سه استخلاف یا بیشتر، بدونِ اعلانِ
-   اتصال. برای این‌ها خواندنِ خطی می‌تواند استخلاف را به استخلافِ دیگر
-   بچسباند به‌جای حلقه — منشأِ همان دو باگ. هشدار است نه خطا، چون بسیاری
-   از آن‌ها اتفاقی درست خوانده می‌شوند. */
-{
+/* توازنِ اتمیِ ترکیب‌هایی که توپولوژی را دستی اعلام کرده‌اند.
+   برای زنجیرهٔ استنتاجی، کم‌بودنِ اتم طبیعی است (حلقه را نمی‌شود بیان کرد)،
+   ولی وقتی کسی bonds را دست نوشته یعنی ساختار را کامل مدل کرده، پس هر
+   اختلافی خطای داده است. همین بررسی، اکسیژنِ اتریِ جاافتادهٔ
+   «(پارا-کرزیل)متیل فنیل کتون» را پیدا کرد. */
+const blocksByIdEarly = new Map((DB.blocks || []).map(b => [b.id, b]));
+compounds.forEach(({ rec, src }) => {
+  if (!Array.isArray(rec.bonds) || !rec.bonds.length) return;
+  if (!rec.formula || !rec.chain || !rec.chain.length) return;
+  if (rec.chain.some(id => !blocksByIdEarly.has(id))) return;
+  const sum = {};
+  rec.chain.forEach(id => {
+    const at = blocksByIdEarly.get(id).atoms || {};
+    for (const [e, v] of Object.entries(at)) sum[e] = (sum[e] || 0) + v;
+  });
+  const want = parseFormula(rec.formula);
+  const off = ["C", "H", "N", "O", "S", "Cl", "Br", "I", "F"]
+    .filter(e => (sum[e] || 0) !== (want[e] || 0))
+    .map(e => e + ": زنجیره " + (sum[e] || 0) + " ≠ فرمول " + (want[e] || 0));
+  if (off.length)
+    err("[" + src + "] «" + (rec.en || rec.name) + "» توپولوژی را دستی اعلام کرده اما اتم‌ها نمی‌خوانند — " + off.join(" · "));
+});
+
+/* توپولوژیِ حل‌نشده: ترکیبی که نه اتصالِ صریح دارد و نه موتور می‌تواند
+   استنتاجش کند (چندحلقه‌ای، یا بلوکی که ظرفیتِ آزاد پیدا نمی‌کند). برای
+   این‌ها خواندنِ خطی جای می‌گیرد و ممکن است استخلاف را به استخلاف بچسباند.
+   از خودِ inferTopology موتور پرسیده می‌شود، نه از کپیِ منطق. */
+if (Inference && Inference.inferTopology) {
   const RINGS = ["phenyl", "phenylene_p", "phenylene_o", "phenylene_m", "tolyl_p",
-                 "naphthyl", "quinolinyl", "pyridin_3yl", "furan_2yl"];
-  const cand = [];
+                 "naphthyl", "quinolinyl", "pyridin_3yl", "furan_2yl", "benzyl"];
+  const unresolved = [];
+  const seenName = new Set();
   compounds.forEach(({ rec }) => {
-    if (Array.isArray(rec.bonds) && rec.bonds.length) return;
+    const name = rec.en || rec.name;
+    if (!name || seenName.has(name)) return;
+    seenName.add(name);
+    if (Array.isArray(rec.bonds) && rec.bonds.length) return;   // اعلانِ صریح
+    if (rec.ring) return;
     const chain = rec.chain || [];
     if (chain.length < 4) return;
     if (!chain.some(id => RINGS.includes(id))) return;
     const subs = chain.filter(id => !RINGS.includes(id)).length;
-    if (subs >= 3) cand.push(rec.en || rec.name);
+    if (subs < 3) return;
+    if (Inference.inferTopology(chain, false)) return;          // موتور حلش می‌کند
+    unresolved.push(name);
   });
-  if (cand.length) {
-    warn(cand.length + " ترکیب حلقهٔ آروماتیک با ۳+ استخلاف دارند و اتصالِ صریح اعلام نکرده‌اند؛ " +
-         "خواندنِ خطی می‌تواند استخلاف را به استخلاف بچسباند به‌جای حلقه. " +
-         "نمونه: " + cand.slice(0, 4).join("، ") + (cand.length > 4 ? " …" : "") +
-         "  (افزودنِ bonds:[[0,i],…] یا ring:true رفعش می‌کند)");
+  if (unresolved.length) {
+    warn(unresolved.length + " ترکیب حلقهٔ چنداستخلافی دارند که توپولوژی‌اش نه اعلام شده و نه " +
+         "قابلِ استنتاج است (چندحلقه‌ای یا زنجیرهٔ تقریبی)؛ خواندنِ خطی جای می‌گیرد: " +
+         unresolved.join("، ") + "  (رفع: bonds:[[0,i],…])");
   }
 }
 

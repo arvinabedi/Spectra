@@ -119,6 +119,22 @@
         const g = hexagon(x + 30, y, 26);
         return { svg: g.svg, width: 60, entry: g.left, exit: g.right };
       }
+      /* حلقه‌های چنداستخلافی: شش‌ضلعی رسم می‌شوند مثل بقیهٔ حلقه‌ها (وگرنه
+         به گلیفِ پیش‌فرضِ متنی می‌افتادند و «۱،۲،۴» به‌جای حلقه دیده می‌شد).
+         الگویِ استخلاف به‌صورتِ برچسبِ کوچکِ زیرِ حلقه می‌آید، چون همان
+         چیزی است که ایزومرها را از هم جدا می‌کند. */
+      case "benzene_tri": case "benzene_123": case "benzene_124": case "benzene_135":
+      case "benzene_tetra": case "benzene_1234": case "benzene_1235": case "benzene_1245":
+      case "benzene_penta": case "benzene_hexa": {
+        const g = hexagon(x + 30, y, 26);
+        const PAT = {
+          benzene_123: "1,2,3", benzene_124: "1,2,4", benzene_135: "1,3,5",
+          benzene_1234: "1,2,3,4", benzene_1235: "1,2,3,5", benzene_1245: "1,2,4,5",
+          benzene_tri: "tri", benzene_tetra: "tetra", benzene_penta: "penta", benzene_hexa: "hexa"
+        };
+        const tag = `<text x="${x + 30}" y="${y + 40}" fill="${COL.ring}" font-size="10" text-anchor="middle" font-family="Consolas,monospace">${PAT[id] || ""}</text>`;
+        return { svg: g.svg + tag, width: 60, entry: g.left, exit: g.right };
+      }
       case "benzyl": {
         const g = hexagon(x + 30, y, 26);
         const s = g.svg + line(g.right[0], y, g.right[0] + 20, y);

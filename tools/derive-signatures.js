@@ -218,7 +218,7 @@ const BLOCK_ALIASES = {
   "دو Ar–CH₃": [],
   "یک متیل sp³ روی CH": ["methyl"],
   "gem-دی‌متیل": ["methyl", "methyl"],
-  "کربن چهارتایی (gem-دی‌متیل)": ["ch", "methyl", "methyl"],
+  "کربن چهارتایی (gem-دی‌متیل)": ["cq", "methyl", "methyl"],
   "اتیل": ["ethyl"], "دو اتیل (روی Cq)": ["ethyl", "ethyl"],
   "ترت‌بوتیل": ["tbutyl"], "ترت-بوتیل": ["tbutyl"],
   "ایزوپروپیل": ["isopropyl"], "ایزوپرنیل×2": ["isopropyl", "isopropyl"],
@@ -321,10 +321,10 @@ const BLOCK_ALIASES = {
   "حلقهٔ هفت‌ضلعی": ["ch2", "ch2", "ch2", "ch2", "ch2"],
   "سیکلوبوتیل": ["ch", "ch2", "ch2", "ch2"],
   "سیکلوهگزیل": ["ch", "ch2", "ch2", "ch2", "ch2", "ch2"],
-  "حلقهٔ ۱،۳،۵-تری‌استخلافی": ["phenyl"], "حلقهٔ شش‌استخلافی": ["phenyl"],
-  "حلقهٔ ۱،۲،۴-تری‌استخلافی": ["phenylene_o"],
-  "حلقهٔ ۱،۲،۴،۵-تتراستخلافی": ["phenylene_p"],
-  "حلقهٔ ۱،۲،۳،۵-تتراستخلافی": ["phenylene_o"]
+  "حلقهٔ ۱،۳،۵-تری‌استخلافی": ["benzene_135"], "حلقهٔ شش‌استخلافی": ["benzene_hexa"],
+  "حلقهٔ ۱،۲،۴-تری‌استخلافی": ["benzene_124"],
+  "حلقهٔ ۱،۲،۴،۵-تتراستخلافی": ["benzene_1245"],
+  "حلقهٔ ۱،۲،۳،۵-تتراستخلافی": ["benzene_1235"]
 };
 
 /* نگهبانِ زنجیره: مجموعِ اتم‌های زنجیره هرگز نباید از فرمول بیشتر شود.
@@ -364,30 +364,72 @@ function mapBlocks(names, validIds, unmapped) {
   return { chain, groupStart };
 }
 
-/* استنتاجِ خودکارِ توپولوژیِ «ستاره».
-   وقتی زنجیره دقیقاً یک حلقه دارد و همهٔ بلوک‌های دیگرش انتهایی‌اند
-   (slots=1)، تنها یک اتصالِ ممکن وجود دارد: حلقه در مرکز و هر استخلاف
-   روی آن. همین حالت اکثریتِ ترکیب‌های چنداستخلافیِ بانک است، و خواندنِ
-   خطی در آن‌ها استخلاف را به استخلافِ بعدی می‌چسباند — منشأِ باگِ
-   «۲-متیل-۴-نیتروفنول که الکل خوانده شد».
-   عمداً محافظه‌کار است: اگر بلوکِ غیرانتهایی (پل، انشعاب، حلقهٔ دوم) در
-   کار باشد، توپولوژی مبهم است و چیزی حدس زده نمی‌شود. */
-const RING_BLOCKS = ["phenyl", "phenylene_p", "phenylene_o", "phenylene_m", "tolyl_p",
-                     "naphthyl", "quinolinyl", "pyridin_3yl", "furan_2yl", "benzyl"];
-function inferStarBonds(chain, blockById) {
-  if (chain.length < 4) return null;                 // خطی و سه‌تایی ابهامی ندارد
-  const ringAt = [];
-  chain.forEach((id, i) => { if (RING_BLOCKS.includes(id)) ringAt.push(i); });
-  if (ringAt.length !== 1) return null;              // بی‌حلقه یا چندحلقه‌ای
-  const hub = ringAt[0];
-  const others = chain.map((id, i) => i).filter(i => i !== hub);
-  const allTerminal = others.every(i => {
-    const b = blockById.get(chain[i]);
-    return b && b.kind === "terminal" && (b.slots === 1 || b.slots == null);
-  });
-  if (!allTerminal) return null;                     // پل/انشعاب هست → مبهم
-  return others.map(i => [hub, i]);
+/* تصحیحِ بلوکِ حلقه بر پایهٔ تعدادِ استخلاف.
+   بانک برای مزیتیلن و تری/تتراـمتیل‌بنزن‌ها ناچار phenyl (C₆H₅، یک ظرفیت)
+   نوشته بود، چون واژگان حلقهٔ چنداستخلافی نداشت. نتیجه‌اش هیدروژنِ اضافه
+   در زنجیره بود و ظرفیتِ ناکافی، که استنتاجِ توپولوژی را هم متوقف می‌کرد.
+   حالا اگر شمارِ استخلاف‌ها از ظرفیتِ حلقه بیشتر باشد، حلقه با گونهٔ
+   درستش جا‌به‌جا می‌شود (هر استخلافِ اضافه یک H کم‌تر).
+   فقط برای بنزنِ سادهٔ بی‌نامِ موقعیت انجام می‌شود؛ tolyl_p و نفتیل و
+   هترو-حلقه‌ها که خودشان اتم اضافه دارند دست‌نخورده می‌مانند. */
+const PLAIN_RINGS = { phenyl: 1, phenylene_p: 2, phenylene_o: 2, phenylene_m: 2 };
+const RING_BY_SLOTS = { 3: "benzene_tri", 4: "benzene_tetra", 5: "benzene_penta", 6: "benzene_hexa" };
+/* الگویِ استخلاف از نامِ ترکیب خوانده می‌شود. برای این خانواده نام‌گذاری
+   سیستماتیک است («۱،۲،۴-تری‌متیل‌بنزن»)، پس عددها همان الگو را می‌گویند —
+   و همان چیزی است که گونهٔ بی‌الگو دور می‌ریخت و دو ایزومر را یکسان می‌کرد.
+   نامِ عام هم پوشش داده می‌شود (مزیتیلن = ۱،۳،۵؛ دورین = ۱،۲،۴،۵). */
+const NAME_PATTERNS = [
+  { re: /1[,\s]*2[,\s]*3[,\s]*4/, id: "benzene_1234" },
+  { re: /1[,\s]*2[,\s]*3[,\s]*5/, id: "benzene_1235" },
+  { re: /1[,\s]*2[,\s]*4[,\s]*5|durene|دورین/i, id: "benzene_1245" },
+  { re: /1[,\s]*2[,\s]*3(?![,\s]*[45])/, id: "benzene_123" },
+  { re: /1[,\s]*2[,\s]*4(?![,\s]*5)/, id: "benzene_124" },
+  { re: /1[,\s]*3[,\s]*5|mesitylen|مزیتیلن/i, id: "benzene_135" },
+  { re: /2[,\s]*4[,\s]*5/, id: "benzene_124" },   // ۲،۴،۵ روی تولوئن = الگوی ۱،۲،۴
+  { re: /2[,\s]*6/, id: "benzene_123" }            // ۲،۶ نسبت به استخلافِ اصلی = وی‌سینال
+];
+function patternedRing(name, slots) {
+  const latin = String(name || "").replace(/[۰-۹]/g, d => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
+  for (const p of NAME_PATTERNS) {
+    if (!p.re.test(latin)) continue;
+    // الگو باید با شمارِ استخلاف بخواند، وگرنه نادیده گرفته می‌شود
+    const want = p.id.replace("benzene_", "").length;
+    if (want === slots) return p.id;
+  }
+  return null;
 }
+
+function fixRingBlock(chain, blockById, nameHint) {
+  const at = [];
+  chain.forEach((id, i) => { if (id in PLAIN_RINGS) at.push(i); });
+  if (at.length !== 1) return null;
+  const hub = at[0];
+  const declared = PLAIN_RINGS[chain[hub]];
+  /* شمارشِ استخلاف‌های حلقه: همان خواندنِ پشته‌ای، ولی با ظرفیتِ نامحدود
+     برای حلقه، تا ببینیم واقعاً چند شاخه از حلقه بیرون می‌آید. */
+  let onHub = 0;
+  const stack = [];
+  for (let i = 0; i < chain.length; i++) {
+    if (i === hub) continue;
+    while (stack.length && stack[stack.length - 1].free <= 0) stack.pop();
+    if (stack.length) stack[stack.length - 1].free -= 1;
+    else onHub++;
+    const b = blockById.get(chain[i]);
+    const slots = b ? (b.slots || 1) : 1;
+    if (slots > 1) stack.push({ i, free: slots - 1 });
+  }
+  if (onHub <= declared) return null;
+  const replacement = patternedRing(nameHint, onHub) || RING_BY_SLOTS[onHub];
+  if (!replacement || !blockById.has(replacement)) return null;
+  const out = chain.slice();
+  out[hub] = replacement;
+  return { chain: out, from: chain[hub], to: replacement, count: onHub };
+}
+
+/* توجه: استنتاجِ توپولوژی اینجا انجام نمی‌شود. موتور (inferTopology در
+   js/inference.js) هنگام بارگذاری خودش آن را می‌سازد، و همان یک پیاده‌سازی
+   برای زنجیره‌های دست‌نویس و تولیدی هر دو کار می‌کند. دو نسخهٔ موازی از
+   یک منطق پیش‌تر در همین پروژه از هم جدا افتاد و بی‌صدا خطا داد. */
 
 /* اندیس‌های bonds از فضایِ blocks به فضایِ chain برده می‌شوند */
 function remapBonds(bonds, groupStart, chainLen) {
@@ -484,9 +526,30 @@ const OVERRIDES = {
   /* نامِ بلوکِ «–OCH₂CH₂O– ×۲» در بانک، زنجیره را کم‌شمار می‌کرد:
      تترااتیلن‌گلیکول هشت CH₂ و سه اکسیژنِ اتری دارد، نه دو واحد.
      C: ۷+۷ (دو توسیل) + ۸ = ۲۲ ✓  O: ۶ (دو سولفونات) + ۳ = ۹ ✓ */
-  "Tetraethylene glycol ditosylate": { chain: [
-    "tolyl_p", "sulfonate", "ch2", "ch2", "ether_o", "ch2", "ch2", "ether_o",
-    "ch2", "ch2", "ether_o", "ch2", "ch2", "sulfonate", "tolyl_p"] },
+  "Tetraethylene glycol ditosylate": {
+    chain: ["tolyl_p", "sulfonate", "ch2", "ch2", "ether_o", "ch2", "ch2", "ether_o",
+            "ch2", "ch2", "ether_o", "ch2", "ch2", "sulfonate", "tolyl_p"],
+    // مسیرِ خطیِ ساده است (دو حلقه در دو سر)، ولی چون دوحلقه‌ای است استنتاج
+    // کنار می‌کشد؛ پس همان مسیر را صریح می‌نویسیم.
+    bonds: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8],
+            [8, 9], [9, 10], [10, 11], [11, 12], [12, 13], [13, 14]] },
+
+  /* بنزیلیک اسید: Ph₂C(OH)COOH — کربنِ مرکزی چهار اتصال دارد، پس بلوکِ
+     سه‌ظرفیتیِ ch کافی نبود و ساختار تا کنون قابلِ بیان نبود. با بلوکِ تازهٔ
+     cq (چهارظرفیتی) درست می‌شود: C6H5 + C + OH + COOH + C6H5 = C14H12O3 ✓ */
+  "Benzilic acid": {
+    chain: ["phenyl", "cq", "hydroxyl", "cooh", "phenyl"],
+    bonds: [[1, 0], [1, 2], [1, 3], [1, 4]] },
+
+  /* (پارا-کرزیل)متیل فنیل کتون: «کرزیل» پیوندِ اکسیژنی است، یعنی
+     p-CH₃C₆H₄–O–CH₂–C(=O)–C₆H₅. فهرستِ blocks در بانک اکسیژنِ اتری را
+     جا انداخته بود (C15H14O۱ به‌جای O۲) و بررسیِ توازنِ اتم لوش داد.
+     شاهدِ طیفی هم همین را می‌گوید: دو دوتاییِ ۷.۱/۶.۸ الگویِ حلقهٔ
+     پارا با اکسیژن است، و ۷.۹/۷.۵ فنیلِ متصل به کربونیل.
+     C7H7 + O + CH2 + CO + C6H5 = C15H14O2 ✓ */
+  "p-Cresyl methyl phenyl ketone": {
+    chain: ["tolyl_p", "ether_o", "ch2", "ketone", "phenyl"],
+    bonds: [[0, 1], [1, 2], [2, 3], [3, 4]] },
 
   /* ترکیب‌های زیر در بانک با نام‌های «توصیفی و هم‌پوشان» ثبت شده‌اند — مثلاً
      «حلقهٔ شش‌عضوی» و «کتون مزدوج» و «سیستم انونی» هر سه یک مولکول را از سه
@@ -506,7 +569,7 @@ const OVERRIDES = {
   "Cycloheptatriene":     { chain: ["ch", "ch", "ch", "ch", "ch", "ch", "ch2"] },
   "2-Cyclohexen-1-one":   { chain: ["ketone", "ch", "ch", "ch2", "ch2", "ch2"] },
   "2-Cyclopentenone":     { chain: ["ketone", "ch", "ch", "ch2", "ch2"] },
-  "3-Nitro-o-xylene":     { chain: ["methyl", "phenylene_o", "methyl", "nitro"] },
+  "3-Nitro-o-xylene":     { chain: ["methyl", "benzene_123", "methyl", "nitro"] },
   "δ-Valerolactone":      { chain: ["ester_co", "ch2", "ch2", "ch2", "ch2"] },
   "Butyl butyrate":       { chain: ["npropyl", "ester_co", "butyl"] },
   "Butyl valerate":       { chain: ["butyl", "ester_co", "butyl"] },
@@ -523,6 +586,7 @@ function main() {
   const unmapped = new Map();
   const guardLog = [];
   const overcount = [];
+  const ringFixes = [];
   const blockById = new Map((DB.blocks || []).map(b => [b.id, b]));
   const out = [];
 
@@ -541,11 +605,7 @@ function main() {
     const mapped = mapBlocks(p.blocks, validIds, unmapped);
     const chain = mapped.chain;
     let bonds = remapBonds(p.bonds, mapped.groupStart, chain.length);
-    let bondsInferred = false;
-    if (!bonds) {
-      const star = inferStarBonds(chain, blockById);
-      if (star) { bonds = star; bondsInferred = true; }
-    }
+    const bondsInferred = false;   // استنتاج در موتور انجام می‌شود، نه اینجا
 
     const dropped = [];
     applyFormulaGuard(sig, p.formula, dropped);
@@ -555,13 +615,21 @@ function main() {
     (ov.signature || []).forEach(t => sig.add(t));
     (ov.drop || []).forEach(t => sig.delete(t));
 
+    // حلقهٔ کم‌ظرفیت را با گونهٔ درست عوض کن (هیدروژنِ اضافه را هم رفع می‌کند)
+    const ringFix = ov.chain ? null : fixRingBlock(chain, blockById, (p.en || "") + " " + (p.name || ""));
+    if (ringFix) { chain.length = 0; ringFix.chain.forEach(x => chain.push(x)); ringFixes.push((p.en || p.name) + ": " + ringFix.from + " → " + ringFix.to + " (" + ringFix.count + " استخلاف)"); }
+
+    /* bonds در OVERRIDES مستقیماً در فضایِ chain نوشته می‌شود. لازم است چون
+       وقتی یک نامِ فارسی به چند بلوک بسط می‌یابد، پیوندِ درونِ همان گروه در
+       فضایِ blocks آدرس‌پذیر نیست (مثلاً cq–hydroxyl در «کربن چهارتایی (C-OH)»). */
+    if (ov.bonds) bonds = ov.bonds;
     let finalChain = ov.chain || chain;
     if (!ov.chain && chainOvercounts(finalChain, p.formula, blockById)) {
       overcount.push("  " + (p.en || p.name) + " (" + p.formula + "): " + finalChain.join("+"));
       finalChain = [];
     }
     out.push({ en: p.en, src, signature: [...sig].sort(), chain: finalChain,
-               bonds: (ov.chain ? null : bonds), bondsInferred });
+               bonds: (ov.bonds ? ov.bonds : (ov.chain ? null : bonds)), bondsInferred });
   }
 
   const inferredCount = out.filter(r => r.bondsInferred).length;
@@ -570,7 +638,12 @@ function main() {
   console.log("ترکیب‌های پردازش‌شده: " + out.length);
   console.log("میانگین طول امضا: " + (out.reduce((s, r) => s + r.signature.length, 0) / out.length).toFixed(1));
   console.log("بدون زنجیره: " + out.filter(r => !r.chain.length).length);
-  console.log("توپولوژی: " + declaredCount + " اعلانِ دستی، " + inferredCount + " استنتاجِ ستاره");
+  console.log("توپولوژی: " + declaredCount + " اعلانِ دستی (استنتاج در موتور انجام می‌شود)");
+  if (ringFixes.length) {
+    console.log("حلقهٔ تصحیح‌شده: " + ringFixes.length);
+    ringFixes.slice(0, 8).forEach(l => console.log("    · " + l));
+    if (ringFixes.length > 8) console.log("    … و " + (ringFixes.length - 8) + " مورد دیگر");
+  }
   console.log("امضای کم‌پوشش (<۳ تگ): " + out.filter(r => r.signature.length < 3).length);
   if (unmapped.size) {
     console.log("\n--- نام‌های بلوکِ نگاشت‌نشده (" + unmapped.size + ") ---");
