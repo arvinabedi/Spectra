@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- صفحهٔ آغازینِ سیستمی (اندروید ۱۲+): همان نشانِ حلقهٔ بنزن و طیف، روی
+         پس‌زمینهٔ سرمه‌ای، بدون هیچ کتابخانهٔ اضافی. -->
+    <style name="Theme.Spectra" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/spectra_bg</item>
+        <item name="android:colorBackground">@color/spectra_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowSplashScreenBackground">@color/spectra_bg</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+    </style>
+</resources>

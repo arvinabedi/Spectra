@@ -1,0 +1,32 @@
+# ===== خروجی‌های ساخت (از منبع بازتولید می‌شوند) =====
+# نسخهٔ تک‌فایل ~۱.۶ مگابایت است و بیشترش فونتِ inline؛ نگه‌داشتنش در تاریخچه
+# با هر تغییرِ کوچک مخزن را باد می‌کند. با tools/build-standalone.js بسازید.
+سامانه-تعیین-ساختار.html
+*.apk
+
+# ===== ساختِ اندروید =====
+android/build/
+android/.gradle/
+android/app/build/
+android/local.properties
+android/.idea/
+android/*.iml
+
+# پوشهٔ آینهٔ ساخت (بیرون از پروژه ساخته می‌شود، ولی محضِ احتیاط)
+Spectra-Android-Build/
+# ردِ باگِ بک‌اسلش: مسیرِ به‌هم‌ریخته که به‌جای %LOCALAPPDATA% پوشه می‌ساخت
+Users*AppData*
+
+# ===== موقت و سیستمی =====
+*.tmp
+*.log
+~$*
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ===== یادداشت =====
+# این‌ها تولیدی‌اند اما *در مخزن می‌مانند*، چون برنامه در زمان اجرا به آن‌ها
+# نیاز دارد و کلونِ تازه باید بدون اجرای ابزارها کار کند:
+#   data/database-signatures.js   (node tools/derive-signatures.js)
+#   data/spectra-manifest.js      (node tools/build-spectra-manifest.js)

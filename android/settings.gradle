@@ -1,0 +1,25 @@
+/* =====================================================================
+   settings.gradle — ریشهٔ ساختِ اندروید
+   ---------------------------------------------------------------------
+   این پوشه پوستهٔ اندرویدیِ «سامانه تعیین ساختار» است. خودِ برنامه همان
+   اپلیکیشن وبِ پوشهٔ بالادست است؛ این‌جا فقط یک WebView آفلاین می‌سازد
+   که فایل‌های وب را از assets برنامه سرو می‌کند. منبعِ حقیقت هم‌چنان
+   index.html و css/ و js/ و data/ در پوشهٔ والد است — این‌جا کدِ برنامه
+   را ویرایش نکنید.
+   ===================================================================== */
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+rootProject.name = "Spectra"
+include ':app'

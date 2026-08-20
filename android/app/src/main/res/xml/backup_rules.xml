@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- کارِ ذخیره‌شدهٔ کاربر در localStorage وب‌ویو است؛ بنابراین پوشهٔ
+     app_webview باید در پشتیبان‌گیری بماند تا با تعویض گوشی از دست نرود. -->
+<full-backup-content>
+    <include domain="database" path="." />
+    <include domain="file" path="app_webview" />
+</full-backup-content>

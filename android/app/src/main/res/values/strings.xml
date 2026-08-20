@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- نامی که زیرِ آیکون در لانچر می‌آید. کوتاه و لاتین است تا
+         بریده نشود؛ عنوانِ کاملِ فارسی داخلِ خودِ برنامه سرِ جایش است. -->
+    <string name="app_name">Spectra</string>
+</resources>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- تمِ تیره و بدون نوار عنوان: تنها میزبانِ WebView است، پس هرچه
+         کمتر دخالت کند بهتر. لبه‌به‌لبه در MainActivity فعال می‌شود و
+         حاشیه‌های ایمن به‌صورت متغیرهای CSS به صفحه تزریق می‌شوند. -->
+    <style name="Theme.Spectra" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/spectra_bg</item>
+        <item name="android:colorBackground">@color/spectra_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>

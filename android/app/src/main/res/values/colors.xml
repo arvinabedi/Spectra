@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- هم‌رنگِ متغیرِ bg-0 در css/styles.css (در XML نمی‌توان دو خط تیره پشت‌سرهم در توضیح گذاشت)؛ اگر آن را تغییر دادید این را هم
+         تغییر دهید تا نوار وضعیت و صفحهٔ آغازین هم‌رنگ بمانند. -->
+    <color name="spectra_bg">#0b0f1f</color>
+    <color name="spectra_accent">#38bdf8</color>
+    <color name="ic_launcher_background">#0e0b2c</color>
+</resources>

@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>سامانه تعیین ساختار — تحلیل طیفی ترکیبات آلی</title>
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0b0f1f">
+<!-- آیکون به‌صورت SVG درون‌خطی (data URI): بدون فایل جداگانه، بدون درخواست
+     شبکه، و بدون خطای ۴۰۴ برای favicon.ico — همان بالن آزمایشگاهیِ سرآیند. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-width='1.8'%3E%3Crect width='24' height='24' rx='5' fill='%230b0f1f' stroke='none'/%3E%3Cpath d='M9 4v5l-4 7a1.8 1.8 0 0 0 1.5 2.7h11A1.8 1.8 0 0 0 19 16l-4-7V4'/%3E%3Cpath d='M7.6 4h8.8M8.4 14h7.2'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ سرآیند ============ -->
+  <header class="masthead">
+    <div class="mast-mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M9 3v6l-5 8a2 2 0 0 0 1.7 3h12.6a2 2 0 0 0 1.7-3l-5-8V3"/>
+        <path d="M7.5 3h9M8.5 14h7"/><circle cx="10" cy="16.5" r="1"/><circle cx="14" cy="18" r="1"/>
+      </svg>
+    </div>
+    <div>
+      <h1>سامانه تعیین ساختار ترکیبات آلی</h1>
+      <p>از طیف به ساختار — هر طیف در بخش خودش: آموزش، شواهدِ اولویت‌بندی‌شده، ابزار تعاملی و شماتیک · جرمی، IR/UV، ¹³C، ¹H، دوبعدی، شیمی‌تر و موتور مونتاژ.</p>
+    </div>
+    <div class="mast-status">
+      <div><span>فرمول فعال</span><span id="status-formula">—</span></div>
+      <div><span>شواهد ثبت‌شده</span><b id="status-evidence">۰</b></div>
+    </div>
+  </header>
+
+  <!-- ============ ناوبری فازها ============ -->
+  <nav class="phase-nav">
+    <button class="phase-btn active" onclick="switchPhase('phase0',this)"><span class="num">۰</span> جرمی و فرمول</button>
+    <button class="phase-btn" onclick="switchPhase('phase1',this)"><span class="num">۱</span> فروسرخ و UV</button>
+    <button class="phase-btn" onclick="switchPhase('phase2',this)"><span class="num">۲</span> کربن‌۱۳ و DEPT</button>
+    <button class="phase-btn" onclick="switchPhase('phase3',this)"><span class="num">۳</span> پروتون ¹H</button>
+    <button class="phase-btn" onclick="switchPhase('phase4',this)"><span class="num">۴</span> دوبعدی و دینامیک</button>
+    <button class="phase-btn" onclick="switchPhase('phase6',this)"><span class="num">۶</span> آنالیز کلاسیک</button>
+    <button class="phase-btn" onclick="switchPhase('phase5',this)"><span class="num">۵</span> استنتاج و ساختار</button>
+    <button class="phase-btn" onclick="switchPhase('phase7',this)"><span class="num">۷</span> بانک سوالات فیلد</button>
+    <button class="phase-btn" onclick="switchPhase('phase8',this)"><span class="num">۸</span> تمرین</button>
+    <button class="phase-btn" onclick="switchPhase('phase9',this)"><span class="num">۹</span> جدول‌های مرجع</button>
+  </nav>
+
+  <!-- ============ نوار کار: حافظه ============
+       کار خودبه‌خود ذخیره می‌شود، پس دکمهٔ «ذخیره» وجود ندارد. این نوار
+       فقط می‌گوید حافظه به‌روز است و دو کارِ نادر را ممکن می‌کند:
+       پاک‌کردنِ همه‌چیز، و پس‌گرفتنِ همان پاک‌کردن. -->
+  <div class="session-bar">
+    <span class="session-status" id="session-status">آماده</span>
+    <span class="session-actions">
+      <button type="button" class="btn ghost" id="session-undo" hidden
+              onclick="sessionUndo()">بازگرداندن کار پاک‌شده</button>
+      <button type="button" class="btn ghost" onclick="sessionReset()">شروع تازه</button>
+    </span>
+  </div>
+
+  <!-- ==================================================================
+       فاز ۰ — جرمی و فرمول
+       ترتیب: آموزش ← فرمول ← ایزوتوپ+شماتیک ← قطعات ← افت خنثی ← اسکلت ← بانک
+       ================================================================== -->
+  <section id="phase0" class="phase active">
+    <div class="intro">
+      <strong>طیف جرمی — نقطهٔ شروع.</strong> جرم یون مولکولی (M⁺) وزن مولکول را می‌دهد؛ الگوی ایزوتوپی هالوژن/گوگرد را لو می‌دهد؛
+      و قطعات (m/z) نقشهٔ شکست را می‌سازند. از این‌جا <em>فرمول</em> و <em>درجهٔ غیراشباعی (IHD)</em> بیرون می‌آید که کل تحلیل را جهت می‌دهد.
+      <br><span style="font-size:var(--fs-sm)">ترتیب خواندن: ابتدا M⁺ و فرمول، سپس خوشهٔ ایزوتوپی، سپس قطعات شاخص، و در نهایت افت‌های خنثی.</span>
+    </div>
+
+    <div class="grid">
+      <!-- ۱) فرمول -->
+      <div class="card">
+        <h3>۱) فرمول و درجهٔ غیراشباعی <span class="ic">⚛</span></h3>
+        <div class="row c2" style="margin-bottom:10px">
+          <label class="chk" style="margin:0"><input type="radio" name="formode" value="mass" checked onchange="toggleFormMode()"><span>از روی جرم (قاعدهٔ ۱۳)</span></label>
+          <label class="chk" style="margin:0"><input type="radio" name="formode" value="atoms" onchange="toggleFormMode()"><span>ورود مستقیم اتم‌ها</span></label>
+        </div>
+        <div id="form-mass-block">
+          <label>جرم یون مولکولی M⁺ (Da)</label>
+          <input type="number" id="f-mass" placeholder="مثلاً ۱۲۲ برای بنزوئیک اسید">
+          <div class="row c2">
+            <div><label>تعداد نیتروژن</label><input type="number" id="f-n" value="0" min="0"></div>
+            <div><label>تعداد اکسیژن</label><input type="number" id="f-o" value="0" min="0"></div>
+          </div>
+          <div class="row c2">
+            <div><label>هالوژن</label><select id="f-hal"><option value="none">ندارد</option><option value="Cl">کلر</option><option value="Br">برم</option><option value="F">فلوئور</option><option value="I">ید</option></select></div>
+            <div><label>تعداد هالوژن</label><input type="number" id="f-halc" value="0" min="0"></div>
+          </div>
+        </div>
+        <div id="form-atoms-block" style="display:none">
+          <div class="row c2">
+            <div><label>کربن C</label><input type="number" id="a-c" value="0" min="0"></div>
+            <div><label>هیدروژن H</label><input type="number" id="a-h" value="0" min="0"></div>
+          </div>
+          <div class="row c2">
+            <div><label>نیتروژن N</label><input type="number" id="a-n" value="0" min="0"></div>
+            <div><label>اکسیژن O</label><input type="number" id="a-o" value="0" min="0"></div>
+          </div>
+          <div class="row c2">
+            <div><label>هالوژن</label><select id="a-hal"><option value="none">ندارد</option><option value="Cl">کلر</option><option value="Br">برم</option><option value="F">فلوئور</option><option value="I">ید</option></select></div>
+            <div><label>تعداد هالوژن</label><input type="number" id="a-halc" value="0" min="0"></div>
+          </div>
+        </div>
+        <button class="btn" onclick="runFormula()">محاسبهٔ فرمول و IHD</button>
+        <div class="out" id="out-formula"></div>
+      </div>
+
+      <!-- ۲) ایزوتوپ + شماتیک تعاملی -->
+      <div class="card">
+        <h3>۲) الگوی ایزوتوپی — تیک و شماتیک زنده <span class="ic">⚡</span></h3>
+        <div class="note blue">خوشهٔ M/M+2 را تیک بزنید؛ نمودار زیر با شدت‌هایی که وارد می‌کنید زنده به‌روز می‌شود.</div>
+        <label class="chk good"><input type="checkbox" data-sig="ms_cl"><span><b>۳:۱</b> — یک کلر</span></label>
+        <label class="chk good"><input type="checkbox" data-sig="ms_br"><span><b>۱:۱</b> — یک برم</span></label>
+        <label class="chk good"><input type="checkbox" data-sig="ms_cl2"><span><b>۹:۶:۱</b> — دو کلر</span></label>
+        <label class="chk good"><input type="checkbox" data-sig="ms_br2"><span><b>۱:۲:۱</b> — دو برم</span></label>
+        <label class="chk"><input type="checkbox" data-sig="ms_127"><span>پیک <b>۱۲۷</b> — ید</span></label>
+        <div class="row c2" style="margin-top:8px">
+          <div><input type="number" id="iso-m" placeholder="شدت M (مثلاً 100)"></div>
+          <div><input type="number" id="iso-m2" placeholder="شدت M+2 (مثلاً 33)"></div>
+        </div>
+        <div id="iso-viz" style="margin-top:10px"></div>
+        <button class="btn ghost" onclick="runIsotope()">تشخیص هالوژن/گوگرد</button>
+        <div class="out cyan" id="out-isotope"></div>
+      </div>
+
+      <!-- ۳) قطعات کلیدی -->
+      <div class="card span-all" style="border-color:var(--amber)">
+        <h3>۳) قطعات یونی کلیدی — تیک یا ورود مستقیم <span class="ic">🔩</span></h3>
+        <div class="note amber">پیک‌های شاخص را به‌ترتیب اهمیت تیک بزنید؛ یا همهٔ m/zها را در کادر پایین وارد کنید تا خودکار شناسایی و تیک شوند.</div>
+        <div class="grid c3" style="gap:8px">
+          <label class="chk good"><input type="checkbox" data-sig="ms_91"><span><b>۹۱</b> تروپیلیوم — بنزیل</span></label>
+          <label class="chk good"><input type="checkbox" data-sig="ms_77"><span><b>۷۷</b> فنیل — حلقهٔ مستقیم</span></label>
+          <label class="chk good"><input type="checkbox" data-sig="ms_105"><span><b>۱۰۵</b> بنزویل — آریل‌کتون/بنزوات</span></label>
+          <label class="chk good"><input type="checkbox" data-sig="ms_43"><span><b>۴۳</b> آسیلیوم — متیل‌کتون/iPr</span></label>
+          <label class="chk good"><input type="checkbox" data-sig="ms_57"><span><b>۵۷</b> ترت‌بوتیل/پروپیونیل</span></label>
+          <label class="chk good"><input type="checkbox" data-sig="ms_30"><span><b>۳۰</b> ایمینیوم — آمین ۱°</span></label>
+          <label class="chk good"><input type="checkbox" data-sig="ms_31"><span><b>۳۱</b> CH₂OH⁺ — الکل ۱°</span></label>
+          <label class="chk"><input type="checkbox" data-sig="ms_45"><span><b>۴۵</b> COOH⁺/الکل ۲°/اتر</span></label>
+          <label class="chk"><input type="checkbox" data-sig="ms_65"><span><b>۶۵</b> سیکلوپنتادی‌انیل (از ۹۱)</span></label>
+          <label class="chk"><input type="checkbox" data-sig="ms_94"><span><b>۹۴</b> فنول — آریل‌اتر (نه بنزیل)</span></label>
+          <label class="chk"><input type="checkbox" data-sig="ms_119"><span><b>۱۱۹</b> بنزیلی نوع سوم (M−15)</span></label>
+          <!-- سریِ همولوگ: وقتی گروهِ عاملیِ قوی نیست، تنها راهنما الگوی
+               توزیعِ قطعاتِ هیدروکربنی است (ماندهٔ پیمانهٔ ۱۴). این دو تگ
+               در امضای پایگاه بودند اما چک‌باکسی نداشتند. -->
+          <label class="chk"><input type="checkbox" data-sig="ms_alkyl_series"><span>سریِ <b>۲۹/۴۳/۵۷/۷۱</b> — اسکلتِ آلکیلِ اشباع (ماندهٔ ۱)</span></label>
+          <label class="chk"><input type="checkbox" data-sig="ms_ring_series"><span>سریِ <b>۲۷/۴۱/۵۵/۶۹</b> — حلقه یا غیراشباع (ماندهٔ ۱۳)</span></label>
+          <label class="chk"><input type="checkbox" data-sig="ms_120"><span><b>۱۲۰</b> انول مک‌لافرتی آریل‌کتون</span></label>
+        </div>
+        <hr style="margin:14px 0">
+        <div class="row c2">
+          <div>
+            <label>همهٔ قطعات m/z (با کاما) — شناسایی خودکار</label>
+            <input type="text" id="ms-frags" data-sig="msFragments" placeholder="مثلاً: 105,77,43">
+          </div>
+          <div>
+            <label>تحلیل‌گر هوشمند قطعات</label>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="smart-mass-input" placeholder="مثال: 91, 77, 43" style="flex:1">
+              <button class="btn ghost" style="width:auto;padding:10px 14px;margin:0" onclick="runSmartMass()">تحلیل</button>
+            </div>
+          </div>
+        </div>
+        <div class="out cyan" id="out-smart-mass"></div>
+      </div>
+
+      <!-- ۴) افت خنثی -->
+      <div class="card">
+        <h3>۴) افت خنثی و مسیر شکست <span class="ic">➟</span></h3>
+        <div class="note blue">تفاوت جرم والد و دختر، قطعهٔ خنثای خارج‌شده را می‌گوید: <span class="en">−15</span> متیل · <span class="en">−18</span> آب · <span class="en">−28</span> CO/اتیلن · <span class="en">−29</span> فرمیل · <span class="en">−42</span> کتن · <span class="en">−56</span> متیل‌کتن (استر فنولی).</div>
+        <div class="row c3">
+          <div><label>یون والد</label><input type="number" id="frag-parent" placeholder="M"></div>
+          <div><label>یون دختر ۱</label><input type="number" id="frag-daughter" placeholder="m/z"></div>
+          <div><label>یون دختر ۲</label><input type="number" id="frag-daughter2" placeholder="اختیاری"></div>
+        </div>
+        <button class="btn ghost" onclick="runFragment()">تحلیل مسیر شکست</button>
+        <div class="out cyan" id="out-fragment"></div>
+      </div>
+
+      <!-- ۵) اسکلت هیدروکربنی -->
+      <div class="card">
+        <h3>۵) پروفایل اسکلت هیدروکربنی <span class="ic">⛓</span></h3>
+        <div class="note blue">بدون گروه عاملی قوی، توزیع قطعات (ماندهٔ پیمانهٔ ۱۴) اسکلت را لو می‌دهد: <span class="en">14n+1</span> آلکیل، <span class="en">14n−1</span> حلقه/غیراشباع.</div>
+        <label>قطعات m/z (با کاما)</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="hc-input" placeholder="مثال: 43, 57, 71, 85" style="flex:1">
+          <button class="btn green" style="width:auto;padding:10px 14px;margin:0" onclick="runHydrocarbon()">تحلیل اسکلت</button>
+        </div>
+        <div class="out" id="out-hydrocarbon"></div>
+      </div>
+
+      <!-- ۶) بانک فیلد: MS -->
+      <div class="card span-all" style="border-color:var(--amber)">
+        <h3>۶) لنگرگاه‌ها و تله‌های جرمی از بانک فیلد <span class="ic">🎯</span></h3>
+        <div id="field-hooks-ms"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================================================================
+       فاز ۱ — فروسرخ و UV
+       ترتیب: آموزش ← کربونیل ← گروه‌ها ← شماتیک IR ← ماشین‌حساب ← هوشمند ← یابنده ← UV ← بانک
+       ================================================================== -->
+  <section id="phase1" class="phase">
+    <div class="intro">
+      <strong>فروسرخ — انگشت‌نگاری گروه‌های عاملی.</strong> مهم‌ترین ناحیه، <em>نردبان کربونیل (۱۶۰۰–۱۸۵۰)</em> است که با مزدوج‌شدگی (پایین‌تر)،
+      اکسیژن فنولی/حلقهٔ کوچک (بالاتر) دقیق جابه‌جا می‌شود. سپس نواحی O–H/N–H، پیوندهای سه‌گانه، و الگوی خمش خارج‌صفحه (استخلاف حلقه).
+      <br><span style="font-size:var(--fs-sm)">ترتیب خواندن: اول C=O، بعد ناحیهٔ ۳۰۰۰+ (O–H/N–H/≡C–H)، بعد ۲۲۰۰ (سه‌گانه)، و آخر انگشت‌نگاری/OOP. UV در انتهای همین بخش.</span>
+    </div>
+
+    <div class="grid">
+      <!-- ۱) نردبان کربونیل -->
+      <div class="card span-all" style="border-color:var(--cyan)">
+        <h3>۱) نردبان کربونیل (بالاترین اولویت) <span class="ic">〰</span></h3>
+        <div class="note blue">جایگاه دقیق C=O ایزومر را تعیین می‌کند. هر باندی که می‌بینید را تیک بزنید.</div>
+        <div class="grid c3" style="gap:8px">
+          <label class="chk good"><input type="checkbox" data-sig="ir_co_ketone"><span>C=O کتون/آلدهید <b>~۱۷۱۵</b></span></label>
+          <label class="chk good"><input type="checkbox" data-sig="ir_co_conj"><span>C=O مزدوج (آریل) <b>۱۶۸۰–۱۷۰۰</b></span></label>
+          <label class="chk good"><input type="checkbox" data-sig="ir_co_ester"><span>C=O استر <b>۱۷۳۵–۱۷۴۵</b></span></label>
+          <label class="chk good"><input type="checkbox" data-sig="ir_ester_aryl"><span>C=O استر فنولی/آریل <b>~۱۷۶۵</b></span></label>
+          <label class="chk good"><input type="checkbox" data-sig="ir_anhydride"><span>انیدرید — جفت‌پیک <b>۱۸۲۰ و ۱۷۵۵</b></span></label>
+          <label class="chk good"><input type="checkbox" data-sig="ir_acidcl"><span>C=O کلرید اسید <b>۱۷۹۰–۱۸۱۵</b> (تک‌پیک)</span></label>
+          <label class="chk good"><input type="checkbox" data-sig="ir_co_amide"><span>C=O آمید <b>۱۶۵۰–۱۶۹۰</b></span></label>
+          <label class="chk trap"><input type="checkbox" data-sig="ir_urea"><span>C=O اوره/آمید بسیار مزدوج <b>۱۶۳۰–۱۶۶۵</b> (تلهٔ آلکن!)</span></label>
+          <label class="chk"><input type="checkbox" data-sig="ir_isocyanate"><span>N=C=O ایزوسیانات <b>۲۲۵۰–۲۲۸۵</b> (پهن/شدید)</span></label>
+        </div>
+      </div>
+
+      <!-- ۲) گروه‌های شاخص -->
+      <div class="card">
+        <h3>۲) گروه‌های عاملی شاخص <span class="ic">✓</span></h3>
+        <label class="chk trap"><input type="checkbox" data-sig="ir_aldehyde"><span>دو دندانهٔ فرمی <b>۲۷۲۰/۲۸۲۰</b> — آلدهید</span></label>
+        <label class="chk trap"><input type="checkbox" data-sig="ir_oh_acid"><span>O–H اسید — پهن <b>۲۵۰۰–۳۳۰۰</b> روی C–H</span></label>
+        <label class="chk good"><input type="checkbox" data-sig="ir_oh_alc"><span>O–H الکل/فنول — <b>۳۲۰۰–۳۶۰۰</b></span></label>
+        <label class="chk good"><input type="checkbox" data-sig="ir_nh"><span>N–H — <b>۳۳۰۰–۳۵۰۰</b> (۱°: دو نوار)</span></label>
+        <label class="chk good"><input type="checkbox" data-sig="ir_triple_cn"><span>C≡N نیتریل <b>~۲۲۵۰</b></span></label>
+        <label class="chk"><input type="checkbox" data-sig="ir_triple_cc"><span>C≡C آلکین <b>۲۱۰۰–۲۱۶۰</b></span></label>
+        <label class="chk"><input type="checkbox" data-sig="ir_alkyne_h"><span>≡C–H خنجری <b>~۳۳۰۰</b></span></label>
+        <label class="chk good"><input type="checkbox" data-sig="ir_nitro"><span>نیترو — <b>۱۳۵۰ و ۱۵۵۰</b></span></label>
+        <label class="chk"><input type="checkbox" data-sig="ir_cn_ring"><span>C=N حلقه (پیریدین) <b>~۱۶۳۷</b></span></label>
+        <label class="chk"><input type="checkbox" data-sig="ir_cf"><span>C–F قوی <b>~۱۳۲۰</b></span></label>
+        <label class="chk"><input type="checkbox" data-sig="ir_aromatic"><span>اسکلت آروماتیک <b>۱۴۵۰ و ۱۶۰۰</b></span></label>
+        <label class="chk"><input type="checkbox" data-sig="ir_co_single"><span>C–O کششی <b>۱۰۰۰–۱۳۰۰</b></span></label>
+        <label class="chk" data-halide-chk="1"><input type="checkbox" data-sig="ir_cx"><span>C–X (کلر/برم/ید) خمشی <b>۵۰۰–۸۰۰</b></span> <span id="ir-cx-warn" class="tag-warn" style="display:none;font-size:var(--fs-2xs);margin-right:4px">فرمول هالوژن ندارد</span></label>
+        <hr style="margin:10px 0">
+        <div style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:6px">الگوی استخلاف حلقه (خمش خارج‌صفحه — همهٔ ۷ الگوی ممکن، از بازهٔ ۶۷۵ تا ۹۰۰ cm⁻¹):</div>
+        <label class="chk"><input type="checkbox" data-sig="ir_mono"><span>تک‌استخلافی <b>۶۹۰–۷۱۰ و ۷۳۰–۷۷۰</b> (هر دو قوی؛ ۵ H مجاور)</span></label>
+        <label class="chk"><input type="checkbox" data-sig="ir_ortho"><span>اورتو (۱،۲-) <b>۷۳۵–۷۷۰</b> (یک باند قوی؛ ۴ H مجاور)</span></label>
+        <label class="chk"><input type="checkbox" data-sig="ir_meta"><span>متا (۱،۳-) <b>۸۶۰–۹۰۰ و ۷۵۰–۸۱۰ و ۶۹۰–۷۱۰</b> (۳ باند؛ ۱ H منزوی)</span></label>
+        <label class="chk"><input type="checkbox" data-sig="ir_para"><span>پارا (۱،۴-) <b>۸۰۰–۸۶۰</b> (یک باند بسیار قوی؛ ۲ H مجاور)</span></label>
+        <label class="chk"><input type="checkbox" data-sig="ir_tri123"><span>۱،۲،۳-سه‌استخلافی <b>۷۶۰–۷۸۰ و ۷۰۵–۷۴۵</b></span></label>
+        <label class="chk"><input type="checkbox" data-sig="ir_tri124"><span>۱،۲،۴-سه‌استخلافی <b>۸۰۵–۸۲۵ و ۸۷۰–۸۸۵</b></span></label>
+        <label class="chk"><input type="checkbox" data-sig="ir_tri135"><span>۱،۳،۵-سه‌استخلافی <b>۸۱۰–۸۶۵ و ۶۷۵–۷۳۰</b> (تقارن C₃v)</span></label>
+        <div class="note amber" style="margin-top:8px;font-size:var(--fs-xs)" id="oop-caveat-note"></div>
+      </div>
+
+      <!-- ۳) شماتیک IR + ماشین‌حساب -->
+      <div class="card">
+        <h3>۳) طیف IR (شماتیک زنده) و ماشین‌حساب <span class="ic">📐</span></h3>
+        <div class="note blue">نوار زیر با تیک‌های بالا زنده روشن می‌شود؛ محور از ۴۰۰۰ تا ۴۰۰ cm⁻¹.</div>
+        <div id="ir-viz" style="margin:8px 0 12px"></div>
+        <label>نوع کربونیل پایه</label>
+        <select id="ir-co-base">
+          <option value="0">— انتخاب کنید —</option>
+          <option value="ketone">کتون (~۱۷۱۵)</option>
+          <option value="aldehyde">آلدهید (~۱۷۲۵)</option>
+          <option value="ester">استر (~۱۷۳۵)</option>
+          <option value="acid">کربوکسیلیک اسید (~۱۷۱۰)</option>
+          <option value="amide">آمید (~۱۶۵۰)</option>
+          <option value="acidchlor">کلرید اسید (~۱۸۰۰)</option>
+        </select>
+        <label class="chk"><input type="checkbox" id="ir-conj"><span>مزدوج با C=C یا حلقه <b>(−۳۰)</b></span></label>
+        <label class="chk"><input type="checkbox" id="ir-hbond"><span>پیوند هیدروژنی درون‌مولکولی <b>(−۲۰)</b></span></label>
+        <label>فشار حلقه</label>
+        <select id="ir-ring"><option value="0">بدون حلقه یا ۶+ عضوی</option><option value="5">حلقهٔ ۵ عضوی (+۳۰)</option><option value="4">حلقهٔ ۴ عضوی (+۶۵)</option></select>
+        <button class="btn" onclick="runCarbonyl()">محاسبهٔ فرکانس C=O</button>
+        <div class="out" id="out-carbonyl"></div>
+      </div>
+
+      <!-- ۴) تحلیل‌گر هوشمند IR -->
+      <div class="card span-all">
+        <h3>۴) تحلیل‌گر هوشمند پیک‌های IR <span class="ic">🔬</span></h3>
+        <p style="font-size:var(--fs-sm);color:var(--muted);margin:0 0 8px">عدد پیک‌ها را با کاما وارد کنید؛ سیستم گروه عاملی و منطق فیزیکی هرکدام را می‌گوید و در صورت قطعی‌بودن خودکار تیک می‌زند.</p>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="smart-ir-input" placeholder="مثال: 3300, 2950, 1715, 1600" style="flex:1">
+          <button class="btn" style="width:auto;padding:10px 16px;margin:0" onclick="runSmartIR()">تحلیل</button>
+        </div>
+        <div class="out" id="out-smart-ir"></div>
+        <hr style="margin:12px 0">
+        <label>تشخیص ترکیبی الگوی استخلاف حلقه — چند باند OOP هم‌زمان</label>
+        <p style="font-size:var(--fs-xs);color:var(--muted);margin:0 0 8px">همهٔ باندهای ناحیهٔ ۶۷۵–۹۰۰ cm⁻¹ که دیده‌اید را با کاما وارد کنید؛ سیستم امتیاز تطابق هر ۷ الگوی استخلافی را هم‌زمان می‌سنجد (نه تک‌تک).</p>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="oop-freqs-input" placeholder="مثال: 700, 760" style="flex:1">
+          <button class="btn ghost" style="width:auto;padding:10px 14px;margin:0" onclick="runOOPPattern()">تشخیص الگو</button>
+        </div>
+        <div class="out cyan" id="out-oop-pattern"></div>
+        <details style="margin-top:10px">
+          <summary style="cursor:pointer;color:var(--muted);font-size:var(--fs-sm)">جدول مرجع باندهای اورتون/ترکیبی (۱۶۶۵–۲۰۰۰ cm⁻¹) — تأییدیهٔ ثانویهٔ الگوی استخلاف</summary>
+          <table style="margin-top:8px"><tr><th>الگو</th><th>شکل ظاهری باندهای ضعیف</th></tr><tbody id="oop-overtone-list"></tbody></table>
+        </details>
+      </div>
+
+      <!-- ۵) یابندهٔ تفصیلی IR -->
+      <div class="card span-all">
+        <h3>۵) یابندهٔ پیک IR — چک‌لیست تفصیلی <span class="ic">🔦</span></h3>
+        <div class="note blue">هر نواری که می‌بینید را با محدوده، شکل و شدت پیدا و تیک بزنید؛ از فرکانس بالا به پایین مرتب شده.</div>
+        <div id="ir-finder-list"></div>
+      </div>
+
+      <!-- ۶) UV -->
+      <div class="card span-all" style="border-color:var(--cyan)">
+        <h3>۶) طیف UV-Vis — وودوارد-فایزر <span class="ic">☀</span></h3>
+        <div class="note blue">UV سیستم‌های مزدوج را می‌سنجد. <b>ε<۱۰۰</b> = n→π* ایزوله · <b>ε>۱۰۰۰۰</b> = مزدوج (باند K). سه ابزار: انون/دی‌ان، آریل‌کتون (اسکات)، و معکوس (از λ به کروموفور).</div>
+        <div class="grid thirds" style="gap:12px">
+          <div>
+            <label>کروموفور پایه</label>
+            <select id="uv-base"><option value="0">— انتخاب —</option><option value="215">انون آسیکلیک/۶حلقه (۲۱۵)</option><option value="202">انون ۵ حلقه (۲۰۲)</option><option value="214">دی‌ان هترو/باز (۲۱۴)</option><option value="253">دی‌ان هوموآنولار (۲۵۳)</option></select>
+            <label>پیوند دوگانهٔ افزایندهٔ مزدوج</label><input type="number" id="uv-ext" value="0" min="0">
+            <label>پیوند اگزوسیکلیک</label><input type="number" id="uv-exo" value="0" min="0">
+          </div>
+          <div>
+            <label>استخلاف α</label><input type="number" id="uv-a" value="0" min="0">
+            <label>استخلاف β</label><input type="number" id="uv-b" value="0" min="0">
+            <label>استخلاف γ و بالاتر</label><input type="number" id="uv-g" value="0" min="0">
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <label class="chk"><input type="checkbox" id="uv-homo"><span>دی‌ان هوموآنولار اضافی (+۳۹)</span></label>
+            <button class="btn" style="margin-top:14px" onclick="runUV()">محاسبهٔ λ<sub>max</sub></button>
+          </div>
+        </div>
+        <div class="out" id="out-uv"></div>
+        <hr style="margin:14px 0">
+        <div class="row c2">
+          <div>
+            <label>UV آروماتیک (Ar–CO–G، قواعد اسکات)</label>
+            <div class="grid thirds" style="gap:8px">
+              <select id="uva-base"><option value="ketone">آریل‌کتون (۲۴۶)</option><option value="aldehyde">آریل‌آلدهید (۲۵۰)</option><option value="acid">آریل‌اسید/استر (۲۳۰)</option></select>
+              <span style="display:flex;gap:4px"><select id="uva-s1"></select><select id="uva-p1"><option value="o">o</option><option value="m">m</option><option value="p" selected>p</option></select></span>
+              <span style="display:flex;gap:4px"><select id="uva-s2"></select><select id="uva-p2"><option value="o">o</option><option value="m">m</option><option value="p" selected>p</option></select></span>
+            </div>
+            <button class="btn amber" style="margin-top:8px" onclick="runUVAromatic()">λ<sub>max</sub> آروماتیک</button>
+            <div class="out amber" id="out-uv-aromatic"></div>
+          </div>
+          <div>
+            <label>تحلیل معکوس — از λ<sub>max</sub> به کروموفور</label>
+            <div class="row c3">
+              <div><input type="number" id="uvr-lambda" placeholder="λ (nm)"></div>
+              <div><input type="number" id="uvr-eps" placeholder="ε"></div>
+              <div><input type="number" id="uvr-logeps" step="0.1" placeholder="log ε"></div>
+            </div>
+            <button class="btn" style="margin-top:8px" onclick="runUVReverse()">تحلیل کروموفور</button>
+            <div class="out cyan" id="out-uv-reverse"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ۷) بانک فیلد: IR/UV -->
+      <div class="card span-all" style="border-color:var(--cyan)">
+        <h3>۷) لنگرگاه‌ها و تله‌های IR/UV از بانک فیلد <span class="ic">🎯</span></h3>
+        <div id="field-hooks-ir"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================================================================
+       فاز ۲ — کربن ۱۳ و DEPT  (+ تقارن/شمارش محیط منتقل‌شده به این‌جا)
+       ================================================================== -->
+  <section id="phase2" class="phase">
+    <div class="intro">
+      <strong>¹³C — اسکلت کربنی و تقارن.</strong> تعداد پیک‌ها = تعداد کربن‌های نامعادل؛ اگر کمتر از کربنِ فرمول باشد، مولکول <em>تقارن</em> دارد.
+      تفکیک کربونیل کلیدی است: <em>۱۹۰–۲۲۰</em> کتون/آلدهید در برابر <em>۱۵۰–۱۸۵</em> استر/اسید/آمید. DEPT نوع هر کربن را می‌گوید.
+      <br><span style="font-size:var(--fs-sm)">ترتیب: اول کربونیل، بعد sp²/آروماتیک، بعد کربن‌های روی هترواتم، و آخر تقارن و شمارش محیط.</span>
+    </div>
+
+    <div class="grid">
+      <!-- ۱) نواحی + امضاهای ویژه -->
+      <div class="card">
+        <h3>۱) نواحی شیفت و امضاهای ویژه <span class="ic">◷</span></h3>
+        <label class="chk good"><input type="checkbox" data-sig="c_ketone"><span>پیک <b>۱۹۰–۲۲۰</b> — کربونیل کتون/آلدهید</span></label>
+        <label class="chk good"><input type="checkbox" data-sig="c_ester"><span>پیک <b>۱۵۰–۱۸۵</b> — استر/اسید/آمید/انیدرید</span></label>
+        <label class="chk"><input type="checkbox" data-sig="c_sp2"><span>پیک‌ها <b>۱۰۰–۱۵۰</b> — sp² آروماتیک/آلکنی</span></label>
+        <label class="chk"><input type="checkbox" data-sig="c_hetero"><span>پیک <b>۵۰–۹۰</b> — sp³ متصل به O/N/X</span></label>
+        <label class="chk"><input type="checkbox" data-sig="c_alkyne"><span>پیک <b>۶۵–۹۰</b> — sp آلکینی</span></label>
+        <label class="chk"><input type="checkbox" data-sig="c_alkyl"><span>پیک‌ها <b>۰–۵۰</b> — آلیفاتیک ساده</span></label>
+        <hr style="margin:10px 0">
+        <div style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:6px">امضاهای تشخیصی ویژه (بانک فیلد):</div>
+        <label class="chk stereo" data-halide-chk="1"><input type="checkbox" data-sig="c_ccl"><span>پیک <b>۳۵–۷۵</b> — C–Cl</span> <span id="c-ccl-warn" class="tag-warn" style="display:none;font-size:var(--fs-2xs);margin-right:4px">فرمول Cl ندارد</span></label>
+        <label class="chk stereo" data-halide-chk="1"><input type="checkbox" data-sig="c_cbr"><span>پیک <b>۲۰–۴۰</b> — C–Br</span> <span id="c-cbr-warn" class="tag-warn" style="display:none;font-size:var(--fs-2xs);margin-right:4px">فرمول Br ندارد</span></label>
+        <label class="chk stereo" data-halide-chk="1"><input type="checkbox" data-sig="c_cf_quartet"><span>چهارتایی <b>CF₃</b> با ¹J~۲۷۰Hz</span> <span id="c-cf-warn" class="tag-warn" style="display:none;font-size:var(--fs-2xs);margin-right:4px">فرمول F ندارد</span></label>
+        <label class="chk stereo" data-halide-chk="1"><input type="checkbox" data-sig="c_heavy_i"><span>شیفت منفی <b>C–I</b> (اثر اتم سنگین)</span> <span id="c-ci-warn" class="tag-warn" style="display:none;font-size:var(--fs-2xs);margin-right:4px">فرمول I ندارد</span></label>
+        <label class="chk stereo"><input type="checkbox" data-sig="c_acetal"><span>کربن استال <b>۸۸–۱۰۵</b> (روی دو O)</span></label>
+      </div>
+
+      <!-- ۲) شماتیک ¹³C + DEPT + خام -->
+      <div class="card">
+        <h3>۲) نقشهٔ ¹³C، DEPT و ورودی خام <span class="ic">▲▼</span></h3>
+        <div class="note blue">خط زیر با تیک‌های نواحی زنده روشن می‌شود (۰–۲۲۰ ppm).</div>
+        <div id="c13-viz" style="margin:8px 0 12px"></div>
+        <div class="dept-ctrl" id="dept-ctrl">
+          <button onclick="runDept('normal',this)">¹³C عادی</button>
+          <button onclick="runDept('dept135',this)">DEPT-135</button>
+          <button onclick="runDept('dept90',this)">DEPT-90</button>
+        </div>
+        <div class="dept-canvas" id="dept-canvas"><div class="dept-axis"></div></div>
+        <div class="note blue" id="dept-caption" style="margin-top:10px"></div>
+        <label class="chk"><input type="checkbox" data-sig="dept_ch2"><span>پیک <b>CH₂</b> (رو به پایین DEPT-135)</span></label>
+        <label class="chk"><input type="checkbox" data-sig="dept_ch"><span>پیک <b>CH</b> (تنها پیک DEPT-90)</span></label>
+        <hr style="margin:10px 0">
+        <label>تحلیل‌گر هوشمند شیفت‌های ¹³C (خام)</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="smart-c13-input" placeholder="مثال: 15, 45, 128, 205" style="flex:1">
+          <button class="btn ghost" style="width:auto;padding:10px 14px;margin:0" onclick="runSmartC13()">تحلیل</button>
+        </div>
+        <div class="out cyan" id="out-smart-c13"></div>
+      </div>
+
+      <!-- ۳) بررسی تقارن -->
+      <div class="card span-all" style="border-color:var(--purple)">
+        <h3>۳) بررسی تقارن — پیک ¹³C در برابر کربنِ فرمول <span class="ic">⚖</span></h3>
+        <div class="note blue">تعداد پیک ¹³C مشاهده‌شده و تعداد کربنِ فرمول را وارد کنید تا درجهٔ تقارن و کاهش سیگنال به‌دست آید.</div>
+        <div class="row c3">
+          <div><label>تعداد پیک ¹³C مشاهده‌شده</label><input type="number" id="sym-cpeaks" placeholder="مثلاً 3"></div>
+          <div><label>تعداد کربن فرمول</label><input type="number" id="sym-cformula" placeholder="خالی = از فرمول فعال"></div>
+          <div style="display:flex;align-items:flex-end"><button class="btn purple" style="width:100%;margin:0" onclick="runSymmetryCheck()">بررسی تقارن</button></div>
+        </div>
+        <div class="out purple" id="out-symmetry"></div>
+      </div>
+
+      <!-- ۴) شمارندهٔ محیط (منتقل‌شده از فاز ۴) -->
+      <div class="card span-all" style="border-color:var(--purple)">
+        <h3>۴) شمارندهٔ خودکار محیط‌های ¹³C و ¹H (تقارن ساختاری) <span class="ic">🔢</span></h3>
+        <div class="note blue">ساختار را به‌صورت <b class="en">SMILES</b> وارد کنید تا محیط‌های نامعادل C و H بر پایهٔ تقارن شمرده شود. <span style="font-size:var(--fs-xs)">بنزن <span class="en">c1ccccc1</span> · ۳-پنتانون <span class="en">CCC(=O)CC</span></span></div>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="env-smiles" placeholder="مثلاً Cc1ccc(O)cc1 برای پارا-کرزول" style="flex:1">
+          <button class="btn green" style="width:auto;padding:10px 16px;margin:0" onclick="runEnvCount()">شمارش محیط‌ها</button>
+        </div>
+        <div class="out" id="out-envcount"></div>
+        <div id="sym-diagram" style="display:none;margin-top:10px"></div>
+        <details style="margin-top:10px">
+          <summary style="cursor:pointer;color:var(--muted);font-size:var(--fs-sm)">جدول نمونه‌های تقارن (مرجع)</summary>
+          <table style="margin-top:8px"><tr><th>ساختار</th><th>محیط ¹H</th><th>محیط ¹³C</th><th>یادداشت</th></tr><tbody id="env-examples-list"></tbody></table>
+        </details>
+      </div>
+
+      <!-- ۵) یابندهٔ تفصیلی -->
+      <div class="card span-all" style="border-color:var(--purple)">
+        <h3>۵) یابندهٔ محیط ¹³C — چک‌لیست تفصیلی <span class="ic">🔦</span></h3>
+        <div class="note blue">هر پیک را در محدودهٔ دقیقش پیدا و تیک بزنید؛ زیرناحیه‌های Pretsch هم نمایش داده می‌شود.</div>
+        <div id="c13-finder-list"></div>
+      </div>
+
+      <!-- ۶) بانک فیلد -->
+      <div class="card span-all" style="border-color:var(--purple)">
+        <h3>۶) لنگرگاه‌ها و تله‌های ¹³C از بانک فیلد <span class="ic">🎯</span></h3>
+        <div id="field-hooks-c13"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================================================================
+       فاز ۳ — پروتون  (+ سیستم اسپینی و درخت شکافت منتقل‌شده به این‌جا)
+       ================================================================== -->
+  <section id="phase3" class="phase">
+    <div class="intro">
+      <strong>¹H — قلب تفسیر.</strong> چهار لایه: <em>شیفت</em> (محیط)، <em>انتگرال</em> (نسبت)، <em>تعدد</em> (n+1 = همسایه‌ها) و <em>ثابت کوپلاژ J</em> (هندسه).
+      <br><span style="font-size:var(--fs-sm)">ترتیب: اول الگوهای طلایی (اتیل/iPr/tBu/AA'BB')، بعد شیفت‌های تشخیصی، بعد J و شکافت، و آخر پیش‌بینی شولری.</span>
+    </div>
+
+    <div class="grid">
+      <!-- ۱) الگوهای طلایی -->
+      <div class="card">
+        <h3>۱) الگوهای طلایی و انگشت‌نگاری <span class="ic">✦</span></h3>
+        <label class="chk trap"><input type="checkbox" data-sig="h_acid"><span>سینگلت پهن <b>۱۰–۱۳</b> (D₂O محو) — اسید</span></label>
+        <label class="chk good"><input type="checkbox" data-sig="h_ald"><span>تیز <b>۹–۱۰</b> — آلدهید</span></label>
+        <label class="chk stereo"><input type="checkbox" data-sig="h_pyridine_alpha"><span>سینگلت <b>~۹.۲</b> — α-پیریدین (تلهٔ آلدهید!)</span></label>
+        <label class="chk good"><input type="checkbox" data-sig="h_ar_mono"><span>مولتی‌پلت <b>5H ~۷.۲</b> — تک‌استخلافی</span></label>
+        <label class="chk good"><input type="checkbox" data-sig="h_para"><span>دو دوتایی متقارن <b>4H (AA'BB')</b> — پارا</span></label>
+        <label class="chk trap"><input type="checkbox" data-sig="h_ar_ortho_co"><span>دوتایی <b>~۸.۰</b> — ارتو به کربونیل/نیترو</span></label>
+        <label class="chk"><input type="checkbox" data-sig="h_vinyl"><span>سیستم <b>AMX وینیلی</b> ۴.۵–۶.۵</span></label>
+        <label class="chk stereo"><input type="checkbox" data-sig="h_acetal"><span>سینگلت <b>1H ~۵.۴</b> — استال</span></label>
+        <label class="chk good"><input type="checkbox" data-sig="h_methoxy"><span>سینگلت تیز <b>3H ~۳.۸</b> — متوکسی</span></label>
+        <label class="chk"><input type="checkbox" data-sig="h_hetero"><span>سیگنال <b>۳.۰–۴.۵</b> — روی کربن حامل O/N/X</span></label>
+        <label class="chk trap"><input type="checkbox" data-sig="h_amine_ch"><span>مولتی‌پلت <b>۲.۳–۳.۰</b> — α آمین نوع دوم/سوم (نه O/X!)</span></label>
+        <label class="chk"><input type="checkbox" data-sig="h_ch_alkyne"><span>سینگلت پهن/تریپلت ظریف <b>۱.۷–۳.۱</b> — ≡C–H آلکین انتهایی</span></label>
+        <label class="chk good"><input type="checkbox" data-sig="h_ethyl"><span>سه‌تایی 3H + چهارتایی 2H — اتیل</span></label>
+        <label class="chk good"><input type="checkbox" data-sig="h_iso"><span>دوتایی 6H + هفت‌تایی 1H — ایزوپروپیل</span></label>
+        <label class="chk good"><input type="checkbox" data-sig="h_tbu"><span>سینگلت <b>9H ~۱.۰</b> — ترت‌بوتیل</span></label>
+        <label class="chk"><input type="checkbox" data-sig="h_sextet"><span>سکستت <b>2H</b> — CH₂ میانی نرمال‌پروپیل</span></label>
+        <label class="chk"><input type="checkbox" data-sig="h_quintet"><span>کوینتت <b>2H</b> — CH₂ مرکزی ۱،۳-دواستخلافی</span></label>
+        <label class="chk"><input type="checkbox" data-sig="h_methyl"><span>سینگلت 3H — متیل مجزا</span></label>
+        <label class="chk stereo"><input type="checkbox" data-sig="h_d2o"><span>تبادلی که با <b>D₂O</b> محو می‌شود — OH/NH</span></label>
+      </div>
+
+      <!-- ۲) شماتیک ¹H + خط‌کش + خام -->
+      <div class="card">
+        <h3>۲) نقشهٔ ¹H (شماتیک زنده)، خط‌کش و خام <span class="ic">↔</span></h3>
+        <div class="note blue">خط زیر با تیک‌های الگوهای طلایی زنده روشن می‌شود (۰–۱۳ ppm).</div>
+        <div id="h1-viz" style="margin:8px 0 12px"></div>
+        <div class="ruler-wrap">
+          <input type="range" class="ruler" min="0" max="13" step="0.1" value="7" oninput="updateRuler(this.value)">
+          <div class="ruler-scale"><span>0</span><span>2</span><span>4</span><span>6</span><span>8</span><span>10</span><span>12</span></div>
+        </div>
+        <div class="ruler-live" id="ruler-live"></div>
+        <hr style="margin:12px 0">
+        <label>تحلیل‌گر هوشمند شیفت + شکافت (خام)</label>
+        <p style="font-size:var(--fs-xs);color:var(--muted);margin:0 0 8px">شیفت و حرف تعدد (s/d/t/q/m) با کاما.</p>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="smart-nmr-input" placeholder="مثال: 1.2(t), 3.5(s), 9.8(s)" style="flex:1">
+          <button class="btn ghost" style="width:auto;padding:10px 14px;margin:0" onclick="runSmartNMR()">تحلیل</button>
+        </div>
+        <div class="out cyan" id="out-smart-nmr"></div>
+      </div>
+
+      <!-- ۳) آشتی انتگرال با فرمول -->
+      <div class="card span-all" style="border-color:var(--green)">
+        <h3>۳) انتگرال در برابر هیدروژن فرمول <span class="ic">∫</span></h3>
+        <div class="note green">طیف انتگرالِ <b>نسبی</b> می‌دهد؛ باید به تعداد <b>واقعی</b> پروتون تبدیل شود. اعداد انتگرال را همان‌طور که از دستگاه خواندید وارد کنید — لازم نیست نرمال‌سازی کنید.</div>
+        <div class="row c2">
+          <div>
+            <label>انتگرال‌ها (با کاما) — به هر مقیاسی</label>
+            <input type="text" id="integ-input" placeholder="مثال: 5, 3   یا   21.4, 12.9">
+          </div>
+          <div>
+            <label>تعداد هیدروژن فرمول</label>
+            <input type="number" id="integ-totalh" placeholder="خالی = از فرمول فعال فاز ۰" min="1">
+          </div>
+        </div>
+        <button class="btn green" onclick="runIntegrals()">آشتی‌دادن با فرمول</button>
+        <div class="out" id="out-integrals"></div>
+      </div>
+
+      <!-- ۳) کوپلاژ J: طبقه‌بندی + سیستم اسپینی + درخت (تجمیع همهٔ کار J در ¹H) -->
+      <div class="card span-all" style="border-color:var(--green)">
+        <h3>۴) ثابت کوپلاژ J — طبقه‌بندی، سیستم اسپینی و درخت شکافت <span class="ic">🎼</span></h3>
+        <div class="note green">همهٔ کار مربوط به J در ¹H یک‌جا: از عدد J به هندسه، استخراج δ از Hz، آزمون مرتبه‌اول، و رسم درخت شکافت.</div>
+        <div class="grid" style="gap:14px">
+          <div>
+            <label>طبقه‌بندی سریع J (Hz، با کاما) → هندسه</label>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="jc-input" placeholder="مثال: 16, 8, 2" style="flex:1">
+              <button class="btn green" style="width:auto;padding:10px 16px;margin:0" onclick="runJClassify()">طبقه‌بندی</button>
+            </div>
+            <div class="out" id="out-jclassify"></div>
+          </div>
+          <div class="row c2">
+            <div><label>فرکانس دستگاه (MHz)</label><input type="number" id="ss-freq" placeholder="100" value="100"></div>
+            <div><label>پیک‌ها: برچسب:Hz (با کاما)</label><input type="text" id="ss-peaks" placeholder="A:501, M:439, X:408"></div>
+          </div>
+          <div>
+            <button class="btn" style="margin:0" onclick="runSpinSystem()">استخراج δ + آزمون مرتبه‌اول</button>
+            <div class="out cyan" id="out-spin"></div>
+          </div>
+          <div>
+            <label>درخت شکافت — ثابت‌های J (Hz، با کاما)</label>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="ss-jtree" placeholder="مثال: 10, 8, 2 (یک ddd)" style="flex:1">
+              <button class="btn ghost" style="width:auto;padding:10px 14px;margin:0" onclick="runSplitTree()">رسم درخت</button>
+            </div>
+            <div class="out" id="out-splittree"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ۴) یابندهٔ تفصیلی -->
+      <div class="card span-all" style="border-color:var(--green)">
+        <h3>۵) یابندهٔ محیط ¹H — چک‌لیست تفصیلی <span class="ic">🔦</span></h3>
+        <div class="note blue">هر سیگنال را در بازهٔ شیفتش پیدا و تیک بزنید؛ منطق فیزیکی هر شیفت توضیح داده شده.</div>
+        <div id="h1-finder-list"></div>
+      </div>
+
+      <!-- ۵) شولری -->
+      <div class="card span-all" style="border-color:var(--green)">
+        <h3>۶) پیش‌بین شیفت پروتون — قواعد افزایشی شولری <span class="ic">🧮</span></h3>
+        <div class="note blue">δ(CH₃)=۰٫۸۷+Σσ · δ(CH₂)=۱٫۲۵+Σσ · δ(CH)=۱٫۵۰+Σσ. جانشین‌ها را تیک بزنید. خروجی یک <b>بازهٔ اطمینان</b> کالیبره‌شده می‌دهد، نه یک عدد تک — چون دقت این روش افزایشی به تعداد و نوع استخلاف بستگی دارد.</div>
+        <div class="row c2" style="margin-bottom:8px">
+          <div><label>نوع کربن</label><select id="shoolery-base"><option value="ch2">CH₂ (متیلن)</option><option value="ch">CH (متین)</option><option value="ch3">CH₃ (متیل)</option></select></div>
+          <div style="display:flex;align-items:flex-end"><button class="btn green" style="width:100%;margin:0" onclick="runShoolery()">پیش‌بینی شیفت</button></div>
+        </div>
+        <label>جانشین‌های متصل</label>
+        <div id="shoolery-subs" class="grid c3 chips-sm" style="gap:6px"></div>
+        <div class="out" id="out-shoolery"></div>
+      </div>
+
+      <!-- ۶) آنالیز مخلوط از انتگرال -->
+      <div class="card span-all" style="border-color:var(--green)">
+        <h3>۷) آنالیز مخلوط — نسبت مولی از انتگرال ¹H <span class="ic">⚖</span></h3>
+        <div class="note blue">وقتی نمونه خالص نیست، انتگرال‌ها نسبت مولی اجزا را می‌دهند: <b>مول نسبی = انتگرال ÷ تعداد پروتون آن سیگنال</b>. هر جزء را به شکل <span class="en">نام:انتگرال:تعدادپروتون</span> وارد کنید.</div>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="mixture-input" placeholder="مثال: تولوئن:3:3, بنزن:2:6" style="flex:1">
+          <button class="btn green" style="width:auto;padding:10px 16px;margin:0" onclick="runMixture()">محاسبهٔ مول٪</button>
+        </div>
+        <div class="out" id="out-mixture"></div>
+        <div id="mixture-viz" style="margin-top:8px"></div>
+      </div>
+
+      <!-- ۷) بانک فیلد -->
+      <div class="card span-all" style="border-color:var(--green)">
+        <h3>۸) لنگرگاه‌ها و تله‌های ¹H از بانک فیلد <span class="ic">🎯</span></h3>
+        <div id="field-hooks-h1"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================================================================
+       فاز ۴ — دوبعدی و دینامیک (خالص: 2D + فضایی + دینامیک)
+       ================================================================== -->
+  <section id="phase4" class="phase">
+    <div class="intro">
+      <strong>دوبعدی و دینامیک — سیم‌کشی و حرکت.</strong> وقتی طیف‌های یک‌بعدی برای اتصال قطعات کافی نیستند، همبستگی دوبعدی نقشهٔ اتصال را می‌دهد.
+      کارپلاس زاویهٔ دی‌هدرال را به J ترجمه می‌کند و DNMR سد چرخش را از دمای هم‌گداخت می‌دهد.
+    </div>
+
+    <div class="grid">
+      <!-- ۱) راهنما + شماتیک COSY -->
+      <div class="card span-all" style="border-color:var(--purple)">
+        <h3>۱) همبستگی دوبعدی — راهنما و نقشهٔ COSY <span class="ic">▦</span></h3>
+        <div class="grid" style="gap:14px">
+          <div>
+            <table>
+              <tr><th>تکنیک</th><th>چه چیزی را وصل می‌کند</th></tr>
+              <tr><td class="en">COSY</td><td>H–H مجاور (³J) — استخوان‌بندی زنجیرهٔ پروتونی</td></tr>
+              <tr><td class="en">HSQC</td><td>H به C مستقیم (¹J) — هر پروتون روی کدام کربن</td></tr>
+              <tr><td class="en">HMBC</td><td>H به C دور (²J,³J) — پل روی هترواتم و کربونیل</td></tr>
+              <tr><td class="en">NOESY</td><td>نزدیکی فضایی — استریوشیمی و سیس/ترانس</td></tr>
+            </table>
+            <ul id="hetero2d-list" style="margin:10px 0 0;padding-inline-start:18px;font-size:var(--fs-sm);color:var(--muted)"></ul>
+          </div>
+          <div>
+            <label>همبستگی‌های COSY (شیفت-شیفت، با کاما) — نقشهٔ زنده</label>
+            <input type="text" id="adv-cosy-input" placeholder="مثال: 1.2-3.5, 7.1-7.8" oninput="drawCosy&&drawCosy()">
+            <div id="cosy-viz" style="margin-top:10px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ۲) تحلیل‌گر فضایی -->
+      <div class="card span-all" style="border-color:var(--purple)">
+        <h3>۲) تحلیل‌گر فضایی: کوپلاژ J، کارپلاس، دی‌استرئوتوپیک <span class="ic">🕸️</span></h3>
+        <div class="grid thirds" style="gap:12px">
+          <div><label>ثابت‌های J (Hz) با کاما</label><input type="text" id="adv-j-input" placeholder="مثال: 15, 8, 2"></div>
+          <div><label>همبستگی‌های COSY</label><input type="text" id="adv-cosy-input-2" placeholder="(از کارت بالا هم می‌آید)" disabled></div>
+          <div><label>&nbsp;</label><label class="chk"><input type="checkbox" id="adv-diastereo-chk"><span>شامل <span class="en">-CH₂-</span> مجاور مرکز کایرال</span></label></div>
+        </div>
+        <button class="btn purple" onclick="runAdvancedNMR()">تحلیل فضایی</button>
+        <div class="out purple" id="out-advanced-nmr"></div>
+      </div>
+
+      <!-- ۳) دینامیک -->
+      <div class="card span-all" style="border-color:var(--cyan)">
+        <h3>۳) دینامیک: DNMR (آیرینگ) و یون شبه‌پایدار <span class="ic">⟳</span></h3>
+        <div class="grid" style="gap:14px">
+          <div>
+            <div class="row c3">
+              <div><label>ν گروه A (Hz)</label><input type="number" id="dnmr-va" placeholder="150"></div>
+              <div><label>ν گروه B (Hz)</label><input type="number" id="dnmr-vb" placeholder="90"></div>
+              <div><label>T<sub>c</sub> (K)</label><input type="number" id="dnmr-tc" placeholder="300"></div>
+            </div>
+            <button class="btn" onclick="runDNMR()">محاسبهٔ سد چرخش ΔG<sup>‡</sup></button>
+            <div class="out" id="out-dnmr"></div>
+          </div>
+          <div>
+            <label>یون شبه‌پایدار m* (طیف جرمی)</label>
+            <div class="row c2">
+              <div><input type="number" id="meta-m1" placeholder="جرم والد m₁"></div>
+              <div><input type="number" id="meta-m2" placeholder="جرم دختر m₂"></div>
+            </div>
+            <button class="btn ghost" onclick="runMeta()">محاسبهٔ m*</button>
+            <div class="out cyan" id="out-meta"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================================================================
+       فاز ۶ — آنالیز کلاسیک
+       ================================================================== -->
+  <section id="phase6" class="phase">
+    <div class="intro">
+      <strong>آنالیز کلاسیک (شیمی‌تر).</strong> نتیجهٔ یک تست لوله‌آزمایش <em>وزن استنتاجی بالاتری</em> از یک پیک ضعیف دستگاهی دارد:
+      شناسایی عنصری ← کلاس حلالیت ← تست گروه عاملی ← مشتق‌سازی.
+    </div>
+    <div class="grid">
+      <div class="card">
+        <h3>۱) تست ذوب سدیم (لاسِن) <span class="ic">🔥</span></h3>
+        <p style="font-size:var(--fs-sm);color:var(--muted);margin:0 0 10px">هر نتیجهٔ مثبت را تیک بزنید. اگر عنصری قطعی شود اما در فرمول نباشد، موتور تناقض اعلام می‌کند.</p>
+        <div id="lassaigne-list"></div>
+      </div>
+      <div class="card">
+        <h3>۲) کلاس حلالیت (شرینر) <span class="ic">💧</span></h3>
+        <label>رفتار انحلال نمونه</label>
+        <select id="sol-class"><option value="">— انتخاب کلاس —</option></select>
+        <button class="btn" style="margin-top:12px" onclick="runSolubility()">ثبت کلاس و تفسیر</button>
+        <div class="out" id="out-solubility"></div>
+        <details style="margin-top:10px">
+          <summary style="cursor:pointer;color:var(--muted);font-size:var(--fs-sm)">فلوچارت کامل شناسایی بر پایهٔ حلالیت (مرجع)</summary>
+          <div id="solubility-flowchart" style="margin-top:8px;overflow-x:auto"></div>
+        </details>
+      </div>
+      <div class="card span-all" style="border-color:var(--purple)">
+        <h3>۳) تست‌های طبقه‌بندی گروه عاملی <span class="ic">🧪</span></h3>
+        <p style="font-size:var(--fs-sm);color:var(--muted);margin:0 0 10px">برای تست‌های کلیدی هم مثبت و هم منفی مهم است. برای الکل/آمین نوع را از منو انتخاب کنید.</p>
+        <div id="functional-tests-list" class="grid" style="gap:12px"></div>
+        <button class="btn purple" style="margin-top:14px" onclick="runWetChem()">ثبت شواهد کلاسیک و خلاصه</button>
+        <div class="out purple" id="out-wetchem"></div>
+      </div>
+      <div class="card span-all">
+        <h3>۴) مشتق‌سازی برای تأیید نهایی <span class="ic">❄</span></h3>
+        <div class="note blue">مشتق جامد با نقطهٔ ذوب تیز، هویت دقیق ترکیب را قطعی می‌کند.</div>
+        <table><tr><th>گروه عاملی</th><th>معرف</th><th>محصول</th></tr><tbody id="derivatization-list"></tbody></table>
+      </div>
+      <div class="card span-all" style="border-color:var(--amber)">
+        <h3>۵) شناسایی با کمپلکس رنگی <span class="ic">🎨</span></h3>
+        <div class="note amber">نتیجهٔ مثبت را تیک بزنید تا وارد موتور شود.</div>
+        <div id="color-tests-list" class="grid" style="gap:12px"></div>
+      </div>
+      <div class="card span-all" style="border-color:var(--purple)">
+        <h3>۶) هینزبرگ — تفکیک آمین ۱°/۲°/۳° <span class="ic">🧫</span></h3>
+        <div id="hinsberg-detail"></div>
+      </div>
+      <div class="card span-all" style="border-color:var(--green)">
+        <h3>۷) لوکاس — همهٔ جوانب <span class="ic">⏱</span></h3>
+        <div id="lucas-detail"></div>
+      </div>
+      <div class="card span-all">
+        <h3>تله‌های تست کیفی <span class="ic">⚠</span></h3>
+        <table><tr><th>تست</th><th>هدف</th><th>تله</th></tr><tbody id="qual-traps-list"></tbody></table>
+      </div>
+      <div class="card span-all">
+        <h3>ردیاب تغییرات طیفی واکنش‌ها <span class="ic">Δ</span></h3>
+        <div id="reaction-tracking-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================================================================
+       فاز ۵ — استنتاج و ساختار
+       ================================================================== -->
+  <section id="phase5" class="phase">
+    <div class="intro">
+      <strong>مونتاژ نهایی.</strong> موتور همهٔ شواهد را کنار فرمول می‌گذارد، قطعات را کشف می‌کند، حول هستهٔ عاملی سرِ هم می‌کند،
+      هر کاندید را با <em>حفظ ظرفیت و فرمول و IHD</em> اعتبارسنجی می‌کند، تناقض‌ها را علامت می‌زند و رتبه می‌دهد.
+    </div>
+    <div class="card">
+      <h3>اجرای موتور استنتاج <span class="ic">🧠</span></h3>
+      <p style="font-size:var(--fs-base);color:var(--muted);margin:0 0 14px">پس از ورود فرمول (فاز ۰) و تیک‌زدن شواهد در فازها، دکمهٔ زیر را بزنید.</p>
+      <div class="row c2">
+        <button class="btn big" onclick="runMaster()">◆ ساخت و رتبه‌بندی ساختارها</button>
+        <button class="btn ghost" style="margin-top:14px" onclick="runFieldMatch()">🔎 سوالات فیلدِ هم‌فرمول</button>
+      </div>
+      <div class="out" id="field-match"></div>
+    </div>
+    <div class="card span-all" style="border-color:var(--accent)">
+      <h3>گزارش حل مسئله <span class="ic">🧾</span></h3>
+      <div class="note blue">مسیر استدلال شما را یک‌جا جمع می‌کند: شواهد ثبت‌شده به تفکیک تکنیک، تناقض‌ها، آشتی انتگرال، و نتیجهٔ موتور. قابل چاپ و کپی — همان چیزی که در بیشتر درس‌ها تحویل داده می‌شود.</div>
+      <div class="field-toolbar">
+        <button class="btn" style="width:auto;padding:10px 18px;margin:0" onclick="reportBuild()">ساخت گزارش</button>
+        <button class="btn ghost" style="width:auto;padding:10px 16px;margin:0" data-desktop-only onclick="reportPrint()">🖨 چاپ</button>
+        <button class="btn ghost" style="width:auto;padding:10px 16px;margin:0" onclick="reportCopy()">کپی متن</button>
+      </div>
+      <div class="out" id="solution-report"></div>
+    </div>
+
+    <div class="master-hero" id="master-hero">
+      <div class="hero-head">
+        <h2>◆ نتیجهٔ استنتاج ساختار</h2>
+        <div style="display:flex;gap:10px;align-items:center">
+          <span class="formula-chip" id="hero-formula">—</span>
+          <span class="cand-score" id="hero-ihd">—</span>
+        </div>
+      </div>
+      <div class="hero-body" id="hero-body"></div>
+    </div>
+  </section>
+
+  <!-- ==================================================================
+       فاز ۷ — بانک سوالات فیلد
+       ================================================================== -->
+  <section id="phase7" class="phase">
+    <div class="intro">
+      <strong>بانک ساختاریافتهٔ سوالات فیلد.</strong> هر مسئله با اثر انگشت طیفی کامل و تلهٔ امتحانی. با فرمول، نام، گروه عاملی یا شماره جستجو کنید،
+      یا در <em>پاسخ سریع</em> فقط فرمول بدهید تا همهٔ کاندیدها و لنگرگاه‌ها یک‌جا بیایند.
+    </div>
+    <div class="card span-all" style="border-color:var(--focus)">
+      <h3>پاسخ سریع از فرمول <span class="ic">⚡</span></h3>
+      <div class="note blue">فرمول (مثل <span class="en">C9H10O</span>): IHD، سوالات فیلد و مراجعِ هم‌فرمول، و راهنمای تشخیصی.</div>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="field-quick-input" placeholder="مثال: C9H10O یا C8H8O2" style="flex:1">
+        <button class="btn" style="width:auto;padding:10px 18px;margin:0" onclick="runQuickFormula()">تحلیل فرمول</button>
+      </div>
+      <div class="out" id="field-quick-out"></div>
+    </div>
+    <div class="card span-all" style="border-color:var(--purple)">
+      <h3>مرور و جستجوی بانک <span class="ic">🔎</span> <span style="font-size:var(--fs-sm);color:var(--muted);font-weight:400">(<span id="field-bank-count">—</span> مورد)</span></h3>
+      <input type="text" id="field-search" placeholder="جستجو: نام، فرمول (C4H8O)، گروه عاملی، شمارهٔ فیلد، یا کلیدواژهٔ تله…">
+      <div id="field-cls-filter" class="field-toolbar" style="margin:10px 0"></div>
+      <div id="field-bank-list" style="margin-top:6px"></div>
+    </div>
+    <div class="card span-all" style="border-color:var(--amber)">
+      <h3>جعبه‌ابزار تله‌های امتحانی <span class="ic">⚠</span></h3>
+      <div class="note amber">قواعد طلاییِ کالبدشکافی مسائل؛ هر تله با «قاعده» و «چراییِ فیزیکی».</div>
+      <div id="exam-traps-list" class="grid" style="gap:12px"></div>
+    </div>
+    <div class="grid">
+      <div class="card span-all" style="border-color:var(--cyan)">
+        <h3>جدول مرجع تقارن — کاهش پیک ¹³C <span class="ic">⚖</span></h3>
+        <div id="symmetry-ref-list"></div>
+      </div>
+      <div class="card span-all" style="border-color:var(--green)">
+        <h3>لنگرگاه‌های تشخیصی طلایی <span class="ic">🎯</span></h3>
+        <div id="diagnostic-patterns-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================================================================
+       فاز ۹ — جدول‌های مرجع
+       این فاز پاسخِ یافتهٔ ممیزیِ پایگاه است: ده جدولِ کاملِ داده در پایگاه
+       وجود داشت که هیچ مصرف‌کننده‌ای در رابط نداشت، یعنی داده وارد شده بود
+       اما هیچ‌وقت به کاربر نشان داده نمی‌شد (قواعد کارپلاس، سیستم‌های
+       اسپینی، قاعدهٔ استیونسون، الگوریتم پنج‌گامی، هسته‌های حلقوی جوش‌خورده،
+       بسطِ وودوارد-فایزر/فیزر-کون، کالیبراسیونِ دیاسترئوتوپیک، ...).
+       ================================================================== -->
+  <section id="phase9" class="phase">
+    <div class="intro">
+      <strong>جدول‌های مرجع.</strong> داده‌های پایه‌ای که موتور از آن‌ها تغذیه می‌کند، این‌جا برای مرور و یادگیری مستقیم آمده‌اند:
+      ظرفیت اتم‌ها، ناحیه‌های شیفت ¹H و ثابت‌های کوپلاژ، قواعد کارپلاس، سیستم‌های اسپینی، قاعدهٔ استیونسون،
+      هسته‌های حلقوی جوش‌خورده، بسط وودوارد-فایزر و فیزر-کون، کالیبراسیون دیاسترئوتوپیک، و الگوریتم استاندارد حل مسئله.
+    </div>
+
+    <div class="card span-all" style="border-color:var(--focus)">
+      <h3>الگوریتم استاندارد حل مسئله <span class="ic">🧭</span></h3>
+      <div id="ref-solving-algorithm"></div>
+    </div>
+
+    <div class="grid">
+      <div class="card" style="border-color:var(--cyan)">
+        <h3>ناحیه‌های شیفت ¹H و ثابت‌های کوپلاژ <span class="ic">📐</span></h3>
+        <div id="ref-h1-tables"></div>
+      </div>
+      <div class="card" style="border-color:var(--purple)">
+        <h3>سیستم‌های اسپینی و تحلیل مرتبهٔ اول <span class="ic">🌀</span></h3>
+        <div id="ref-spin-systems"></div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card" style="border-color:var(--green)">
+        <h3>قواعد کارپلاس — رابطهٔ J با زاویهٔ دووجهی <span class="ic">∠</span></h3>
+        <div id="ref-karplus"></div>
+      </div>
+      <div class="card" style="border-color:var(--amber)">
+        <h3>قاعدهٔ استیونسون — محل استقرار بار در شکست جرمی <span class="ic">⚡</span></h3>
+        <div id="ref-stevenson"></div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card" style="border-color:var(--focus)">
+        <h3>هسته‌های حلقوی جوش‌خورده <span class="ic">⬡</span></h3>
+        <div id="ref-fused-rings"></div>
+      </div>
+      <div class="card" style="border-color:var(--purple)">
+        <h3>بسط وودوارد-فایزر و معادلهٔ فیزر-کون <span class="ic">🌈</span></h3>
+        <div id="ref-uv-extended"></div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card" style="border-color:var(--cyan)">
+        <h3>کالیبراسیون دیاسترئوتوپیک <span class="ic">🔀</span></h3>
+        <div id="ref-diastereotopic"></div>
+      </div>
+      <div class="card" style="border-color:var(--green)">
+        <h3>مولکول‌های مرجع انشعاب (گره‌های CH و C کواترنر) <span class="ic">🌳</span></h3>
+        <div id="ref-branching"></div>
+      </div>
+    </div>
+
+    <div class="card span-all">
+      <h3>ظرفیت و جرم اتم‌ها <span class="ic">⚛</span></h3>
+      <div id="ref-atoms"></div>
+    </div>
+  </section>
+
+  <!-- ==================================================================
+       فاز ۸ — تمرین (حل مسئله روی بانک، با پاسخ پنهان)
+       ================================================================== -->
+  <section id="phase8" class="phase">
+    <div class="intro">
+      <strong>تمرین — از طیف به ساختار، بدون دیدن جواب.</strong> بانک فاز ۷ مرجع است؛ این‌جا همان مسائل به‌صورت <em>آزمون</em> می‌آیند:
+      فرمول و چهار طیف را می‌بینید، نام و قطعات و تلهٔ امتحانی پنهان است. ساختار را حدس بزنید (می‌توانید SMILES هم بدهید تا خودکار
+      با فرمول و درجهٔ غیراشباعی سنجیده شود)، سپس پاسخ را باز کنید.
+      <br><span style="font-size:var(--fs-sm)">پیشرفت شما ذخیره می‌شود؛ با بستن مرورگر از بین نمی‌رود.</span>
+    </div>
+
+    <div class="grid">
+      <div class="card span-all">
+        <h3>۱) انتخاب دامنهٔ تمرین <span class="ic">🎯</span></h3>
+        <div class="row c3">
+          <div>
+            <label>گروه عاملی</label>
+            <select id="pr-cls"><option value="all">همه</option></select>
+          </div>
+          <div>
+            <label>درجهٔ غیراشباعی (IHD)</label>
+            <select id="pr-ihd">
+              <option value="all">همه</option>
+              <option value="0">۰ — اشباع</option>
+              <option value="1-3">۱ تا ۳</option>
+              <option value="4">۴ — احتمال حلقهٔ بنزن</option>
+              <option value="5+">۵ و بالاتر</option>
+            </select>
+          </div>
+          <div>
+            <label>حالت</label>
+            <select id="pr-mode">
+              <option value="unseen">فقط حل‌نشده‌ها</option>
+              <option value="wrong">فقط اشتباه‌های قبلی</option>
+              <option value="all">همه</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-toolbar" style="margin-top:10px">
+          <button class="btn" style="width:auto;padding:10px 18px;margin:0" onclick="prStart()">شروع / بازچینش</button>
+          <button class="btn ghost" style="width:auto;padding:10px 16px;margin:0" onclick="prRandom()">🎲 تصادفی</button>
+          <button class="btn ghost" style="width:auto;padding:10px 16px;margin:0" onclick="prResetProgress()">پاک‌کردن پیشرفت</button>
+        </div>
+        <div id="pr-score" style="margin-top:12px"></div>
+      </div>
+
+      <div class="card span-all" style="border-color:var(--accent)">
+        <h3>۲) مسئله <span class="ic">🔬</span> <span id="pr-counter" class="pill" style="font-weight:400"></span></h3>
+        <div id="pr-problem"><div class="empty-hint">برای شروع، دکمهٔ «شروع / بازچینش» را بزنید.</div></div>
+      </div>
+
+      <div class="card span-all" id="pr-answer-card" style="display:none">
+        <h3>۳) پاسخ شما <span class="ic">✍</span></h3>
+        <div class="row c2">
+          <div>
+            <label>نام ساختار (حدس شما)</label>
+            <input type="text" id="pr-guess-name" placeholder="مثلاً: پارا-برمواستوفنون">
+          </div>
+          <div>
+            <label>ساختار به <span class="en">SMILES</span> (اختیاری — خودکار سنجیده می‌شود)</label>
+            <input type="text" id="pr-guess-smiles" placeholder="مثلاً CC(=O)c1ccc(Br)cc1">
+          </div>
+        </div>
+        <div class="field-toolbar">
+          <button class="btn green" style="width:auto;padding:10px 18px;margin:0" onclick="prCheck()">سنجش SMILES</button>
+          <button class="btn amber" style="width:auto;padding:10px 18px;margin:0" onclick="prReveal()">نمایش پاسخ</button>
+          <button class="btn ghost" style="width:auto;padding:10px 16px;margin:0" onclick="prSendToPhase0()">بردن فرمول به فاز ۰</button>
+        </div>
+        <div class="out" id="pr-check"></div>
+        <div id="pr-reveal"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>سامانه تحلیل طیفی و مونتاژ ساختار — موتور استنتاج مبتنی بر قطعات سازنده · اجرا کاملاً آفلاین</footer>
+</div>
+
+<!-- ترتیب: دیتابیس (شامل جداول ادغام‌شدهٔ فاز ۱) → افزونهٔ فیلد → داده‌های جدید فیلد (فاز ۱) → موتور → رندر → ماشین‌حساب (شامل توابع ادغام‌شدهٔ فاز ۱.۵) → ساختار → کنترلر → رابط فیلد → شماتیک‌های زنده
+     یادداشت مرحلهٔ ۲: data/database-extended.js و js/calculators-extended.js و data/field-data-extended.js
+     دیگر جداگانه بارگذاری نمی‌شوند چون محتوای آن‌ها از قبل عیناً در انتهای database.js و calculators.js و
+     field-data.js موجود بود (بارگذاری دوگانه). تگ <script> مربوط به field-data-extended.js حذف شد چون آن
+     فایل روی دیسک وجود ندارد و هر بار بارگذاری صفحه یک خطای ۴۰۴ تولید می‌کرد. -->
+<script src="data/database.js"></script>
+<script src="data/field-data.js"></script>
+<script src="data/field-osfs-table.js"></script>
+<script src="data/database-expansion.js"></script>
+<script src="data/database-signatures.js"></script>
+<script src="data/nmr-peak-library.js"></script>
+<script src="data/spectra-manifest.js"></script>
+<script src="js/inference.js"></script>
+<script src="js/renderer.js"></script>
+<script src="js/calculators.js"></script>
+<script src="js/structure.js"></script>
+<script src="js/app.js"></script>
+<script src="js/field-ui.js"></script>
+<script src="js/live-viz.js"></script>
+<script src="js/practice.js"></script>
+<script src="js/reference-tables.js"></script>
+<!-- session.js آخرین اسکریپت است: بازگردانی کار ذخیره‌شده باید بعد از
+     DOMContentLoaded همهٔ ماژول‌های دیگر اجرا شود، چون چک‌باکس‌های
+     «یابنده»ها و کارت‌های تزریقی همان‌جا ساخته می‌شوند. -->
+<script src="js/session.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+# خطِ پایان را در مخزن به LF قفل می‌کنیم تا فقط تغییرِ ابزارِ ساخت روی
+# ویندوز، دیفِ کاذبِ چندهزارخطی نسازد. (ابزارهای Node این پروژه با
+# newline:"" می‌نویسند، پس محتوا دست‌نخورده می‌ماند.)
+* text=auto eol=lf
+
+# دودویی‌ها هرگز دست‌کاری نشوند
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.apk  binary
+*.ttf  binary
+*.woff binary
+*.woff2 binary
+
+# فایل‌های تولیدی: در دیف جمع شوند تا مرورِ تغییرِ دستی آسان بماند
+data/database-signatures.js -diff
+data/spectra-manifest.js    -diff

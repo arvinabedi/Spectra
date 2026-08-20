@@ -1,0 +1,113 @@
+/* =====================================================================
+   app/build.gradle — پوستهٔ اندرویدیِ «سامانه تعیین ساختار»
+   ---------------------------------------------------------------------
+   نکتهٔ کلیدی: فایل‌های وب کپیِ دستی نمی‌شوند. تسکِ syncWebAssets پیش از
+   هر ساخت، index.html و css/ و js/ و data/ و assets/ را از پوشهٔ والد
+   به assets/www می‌آورد. پس بعد از ویرایشِ برنامهٔ وب، فقط دوباره build
+   بگیرید — هیچ مرحلهٔ کپیِ فراموش‌شدنی وجود ندارد.
+
+   بدون مجوز INTERNET: برنامه کاملاً آفلاین است و همه‌چیز از داخل APK
+   خوانده می‌شود.
+   ===================================================================== */
+plugins {
+    id 'com.android.application'
+}
+
+/* پوشهٔ برنامهٔ وب = والدِ همین پوشهٔ android/ */
+def webRoot = rootProject.projectDir.parentFile
+/* به‌شکل File حل می‌شود، نه Provider: هم assets.srcDirs و هم Copy.into
+   بدون ابهام آن را می‌پذیرند. */
+def webAssetsDir = layout.buildDirectory.dir('generated/webAssets').get().asFile
+
+android {
+    namespace 'ir.spectra.structure'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'ir.spectra.structure'
+        minSdk 26          // اندروید ۸ به بالا — پوشش ~۹۹٪ دستگاه‌های فعال
+        targetSdk 35
+        versionCode 1
+        versionName '1.0'
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-debug'
+        }
+        release {
+            /* دارایی‌ها فایل‌های وب‌اند و کدِ جاوا چند صد خط است؛
+               کوچک‌سازی سودِ محسوسی ندارد. */
+            minifyEnabled false
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    /* دارایی‌های تولیدشده به مسیرهای دارایی اضافه می‌شوند: محتوای این
+       پوشه (یعنی www/) عیناً داخل APK زیر assets/ می‌نشیند. */
+    sourceSets {
+        main {
+            assets.srcDirs += [webAssetsDir]
+        }
+    }
+
+}
+
+dependencies {
+    /* کدِ ما جاواست، ولی کتابخانه‌های androidx کاتلینی‌اند و stdlib را با
+       خود می‌آورند. مشکل این‌جاست که یکی kotlin-stdlib:1.8.22 می‌کشد و
+       دیگری به‌شکل گذرا kotlin-stdlib-jdk8:1.6.21؛ و از کاتلین ۱.۸ به بعد
+       محتوای jdk7/jdk8 داخل خودِ stdlib ادغام شده. نتیجه: کلاس‌های تکراری
+       و شکستِ تسکِ checkDebugDuplicateClasses. این BOM همهٔ artifactهای
+       کاتلین را روی یک نسخه هم‌تراز می‌کند و jdk7/jdk8 به پوسته‌های خالی
+       تبدیل می‌شوند. */
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:1.8.22')
+
+    implementation 'androidx.activity:activity:1.9.3'
+    implementation 'androidx.core:core:1.13.1'
+    implementation 'androidx.webkit:webkit:1.12.1'
+}
+
+/* نظرها و رشته‌ها فارسی‌اند؛ بدون این، javac با کدپیجِ پیش‌فرضِ ویندوز
+   متن را خراب می‌خواند. */
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+/* ---------------------------------------------------------------------
+   همگام‌سازی دارایی‌های وب
+   --------------------------------------------------------------------- */
+tasks.register('syncWebAssets', Copy) {
+    description = 'کپیِ برنامهٔ وب از پوشهٔ والد به دارایی‌های اندروید'
+    group = 'build'
+
+    from(webRoot) {
+        include 'index.html'
+        include 'css/**'
+        include 'js/**'
+        include 'data/**'
+        include 'assets/**'
+    }
+    into new File(webAssetsDir, "www")
+
+    /* اگر index.html نبود، ساخت باید با پیام روشن شکست بخورد نه با یک
+       APK خالیِ سفید. */
+    doFirst {
+        if (!new File(webRoot, 'index.html').exists()) {
+            throw new GradleException(
+                "index.html در ${webRoot} پیدا نشد — پوشهٔ android/ باید کنار برنامهٔ وب بماند.")
+        }
+    }
+    doLast {
+        logger.lifecycle("دارایی‌های وب همگام شد: ${webRoot}  ->  assets/www")
+    }
+}
+
+tasks.named('preBuild') { dependsOn 'syncWebAssets' }

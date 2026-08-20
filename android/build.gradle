@@ -1,0 +1,4 @@
+/* پیکربندی سراسری — نسخهٔ افزونهٔ اندروید یک‌جا تعریف می‌شود. */
+plugins {
+    id 'com.android.application' version '8.7.3' apply false
+}
