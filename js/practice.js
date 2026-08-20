@@ -30,6 +30,30 @@
   /* ---------- پیشرفت ---------- */
   let progress = {};           // key(problem) -> "correct" | "wrong"
   function pkey(p) { return p.formula + "|" + (p.en || p.name); }
+  /* جعبه‌های لایتنر: پیش‌تر برای هر مسئله فقط رشتهٔ «correct»/«wrong» ذخیره
+     می‌شد. نتیجه‌اش این بود که مسئله‌ای که یک‌بار اشتباه و بعد درست زده شده،
+     برای همیشه «حل‌شده» می‌ماند و دیگر هرگز برنمی‌گشت — یعنی مرورِ فاصله‌دار
+     وجود نداشت. حالا هر مسئله جعبه‌ای از ۰ (تازه/اشتباه) تا ۵ (تثبیت‌شده)
+     دارد؛ درست‌زدن یک پله بالا می‌برد و اشتباه‌زدن به جعبهٔ ۰ برمی‌گرداند.
+     صفِ «هوشمند» به‌ترتیبِ جعبه (کم‌تر = سرِ صف) می‌چیند، پس آنچه لنگ است
+     اول می‌آید و آنچه تثبیت شده آخر. */
+  const MAX_BOX = 5;
+  function statOf(k) {
+    const v = progress[k];
+    if (!v) return null;
+    // مهاجرتِ شکلِ قدیمی (رشته) به شکلِ جعبه‌ای، بی‌ازدست‌رفتنِ تاریخچه
+    if (typeof v === "string") {
+      const migrated = { box: v === "correct" ? 2 : 0, seen: 1, wrong: v === "correct" ? 0 : 1, last: 0 };
+      progress[k] = migrated;
+      return migrated;
+    }
+    return v;
+  }
+  function verdictOf(k) {                    // برای سازگاری با نمایشِ قدیمی
+    const st = statOf(k);
+    if (!st) return null;
+    return st.box >= 2 ? "correct" : (st.wrong ? "wrong" : "correct");
+  }
   function loadProgress() {
     try { progress = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; }
     catch (e) { progress = {}; }
@@ -62,15 +86,27 @@
     let list = (DB.fieldProblems || []).filter(p => {
       if (cls !== "all" && p.cls !== cls) return false;
       if (ihd !== "all" && ihdBucket(p.ihd) !== ihd) return false;
-      const st = progress[pkey(p)];
+      const st = statOf(pkey(p));
       if (mode === "unseen" && st) return false;
-      if (mode === "wrong" && st !== "wrong") return false;
+      if (mode === "wrong" && !(st && st.box === 0 && st.seen)) return false;
+      if (mode === "smart" && st && st.box >= MAX_BOX) return false;   // تثبیت‌شده‌ها کنار
       return true;
     });
     // ترتیب تصادفی تا حفظ‌کردن ترتیب بانک کمکی نکند
     for (let i = list.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [list[i], list[j]] = [list[j], list[i]];
+    }
+    if (mode === "smart") {
+      /* مرورِ فاصله‌دار: جعبهٔ پایین‌تر جلوتر. مسئلهٔ دیده‌نشده بینِ جعبهٔ ۰
+         (اشتباهِ اخیر) و جعبهٔ ۱ می‌نشیند تا اول اشتباه‌ها جبران شوند، بعد
+         مطلبِ تازه بیاید. تصادفیِ بالا ترتیبِ درون‌گروهی را می‌شکند. */
+      const rank = p => {
+        const st = statOf(pkey(p));
+        if (!st) return 0.5;                 // دیده‌نشده
+        return st.box;
+      };
+      list.sort((a, b) => rank(a) - rank(b));
     }
     return list;
   }
@@ -81,16 +117,19 @@
     if (!box) return;
     const total = (DB.fieldProblems || []).length;
     const keys = Object.keys(progress);
-    const correct = keys.filter(k => progress[k] === "correct").length;
-    const wrong = keys.filter(k => progress[k] === "wrong").length;
-    const attempted = correct + wrong;
-    const pct = attempted ? Math.round((correct / attempted) * 100) : 0;
+    const stats = keys.map(statOf).filter(Boolean);
+    const correct = stats.filter(x => x.box >= 2).length;      // دو پاسخِ درستِ پیاپی و بالاتر
+    const wrong = stats.filter(x => x.box === 0 && x.wrong).length;
+    const mastered = stats.filter(x => x.box >= MAX_BOX).length;
+    const attempted = stats.length;
+    const pct = attempted ? Math.round((correct / attempted) * 100) : 0;   // «درست» = جعبهٔ ۲ به بالا
     box.innerHTML = `<div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-end">
       <div><span style="font-size:var(--fs-2xs);color:var(--muted)">تلاش‌شده</span><br><b class="big-num">${attempted}</b>
         <span style="font-size:var(--fs-2xs);color:var(--muted)"> از ${total}</span></div>
       <div><span style="font-size:var(--fs-2xs);color:var(--muted)">درست</span><br><b class="big-num" style="color:var(--t-h1)">${correct}</b></div>
       <div><span style="font-size:var(--fs-2xs);color:var(--muted)">اشتباه</span><br><b class="big-num" style="color:var(--red)">${wrong}</b></div>
       <div><span style="font-size:var(--fs-2xs);color:var(--muted)">دقت</span><br><b class="big-num">${pct}%</b></div>
+      <div><span style="font-size:var(--fs-2xs);color:var(--muted)">تثبیت‌شده</span><br><b class="big-num" style="color:var(--t-c13)">${mastered}</b></div>
     </div>
     <div class="cand-bar" style="margin-top:10px"><span style="width:${attempted ? pct : 0}%"></span></div>`;
   }
@@ -108,12 +147,17 @@
     }
     if (counter) counter.textContent = `${idx + 1} از ${queue.length}`;
     if (card) card.style.display = "";
-    const st = progress[pkey(p)];
+    const st = verdictOf(pkey(p));
     box.innerHTML = `
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
         <span class="formula-chip">${sub(esc(p.formula))}</span>
         <span class="tag-info">IHD ${esc(p.ihd)}</span>
         ${st ? `<span class="${st === "correct" ? "tag-ok" : "tag-warn"}">${st === "correct" ? "قبلاً درست" : "قبلاً اشتباه"}</span>` : ""}
+        ${(function () {
+          const b = statOf(pkey(p));
+          if (!b) return "";
+          return `<span class="tag-info" title="مرورِ فاصله‌دار: با هر پاسخِ درست یک پله بالا، با اشتباه به صفر">جعبهٔ ${b.box}/${MAX_BOX}${b.box >= MAX_BOX ? " — تثبیت‌شده" : ""}</span>`;
+        })()}
         <span class="pill">نام و قطعات پنهان است</span>
       </div>
       <table style="margin:0">
@@ -206,7 +250,13 @@
   function prMark(verdict) {
     const p = current();
     if (!p) return;
-    progress[pkey(p)] = verdict;
+    const k = pkey(p);
+    const st = statOf(k) || { box: 0, seen: 0, wrong: 0, last: 0 };
+    st.seen = (st.seen || 0) + 1;
+    if (verdict === "correct") st.box = Math.min(MAX_BOX, (st.box || 0) + 1);
+    else { st.box = 0; st.wrong = (st.wrong || 0) + 1; }
+    st.last = st.seen;                       // شمارندهٔ نوبت، نه ساعت — مستقل از زمان
+    progress[k] = st;
     saveProgress();
     renderScore();
     prNext();

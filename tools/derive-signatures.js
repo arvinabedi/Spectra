@@ -343,18 +343,64 @@ function chainOvercounts(chain, formula, blockById) {
   return ["C", "N", "O", "S", "Cl", "Br", "I", "F"].some(e => (sum[e] || 0) > (want[e] || 0));
 }
 
+/* groupStart[i] = اندیسِ نخستین بلوکی که نامِ i-امِ blocks تولید کرده.
+   لازم است چون یک نام می‌تواند به چند بلوک بسط یابد («اتوکسی‌کربونیل» =
+   ester_co + ethyl)، و آن‌وقت اندیس‌های bonds که به آرایهٔ blocks اشاره
+   می‌کنند با اندیس‌های chain یکی نیستند. بدونِ این نگاشت، اعلانِ اتصال
+   بی‌صدا به بلوکِ اشتباه وصل می‌شد. */
 function mapBlocks(names, validIds, unmapped) {
   const chain = [];
-  for (const raw of names || []) {
+  const groupStart = [];
+  (names || []).forEach(raw => {
     const key = String(raw).trim();
     const mapped = BLOCK_ALIASES[key];
-    if (!mapped) { unmapped.set(key, (unmapped.get(key) || 0) + 1); continue; }
+    groupStart.push(chain.length);            // حتی اگر نگاشت نشود، جا نگه می‌داریم
+    if (!mapped) { unmapped.set(key, (unmapped.get(key) || 0) + 1); return; }
     for (const id of mapped) {
       if (validIds.has(id)) chain.push(id);
       else unmapped.set("[بلوکِ ناموجود: " + id + "]  از  " + key, 1);
     }
-  }
-  return chain;
+  });
+  return { chain, groupStart };
+}
+
+/* استنتاجِ خودکارِ توپولوژیِ «ستاره».
+   وقتی زنجیره دقیقاً یک حلقه دارد و همهٔ بلوک‌های دیگرش انتهایی‌اند
+   (slots=1)، تنها یک اتصالِ ممکن وجود دارد: حلقه در مرکز و هر استخلاف
+   روی آن. همین حالت اکثریتِ ترکیب‌های چنداستخلافیِ بانک است، و خواندنِ
+   خطی در آن‌ها استخلاف را به استخلافِ بعدی می‌چسباند — منشأِ باگِ
+   «۲-متیل-۴-نیتروفنول که الکل خوانده شد».
+   عمداً محافظه‌کار است: اگر بلوکِ غیرانتهایی (پل، انشعاب، حلقهٔ دوم) در
+   کار باشد، توپولوژی مبهم است و چیزی حدس زده نمی‌شود. */
+const RING_BLOCKS = ["phenyl", "phenylene_p", "phenylene_o", "phenylene_m", "tolyl_p",
+                     "naphthyl", "quinolinyl", "pyridin_3yl", "furan_2yl", "benzyl"];
+function inferStarBonds(chain, blockById) {
+  if (chain.length < 4) return null;                 // خطی و سه‌تایی ابهامی ندارد
+  const ringAt = [];
+  chain.forEach((id, i) => { if (RING_BLOCKS.includes(id)) ringAt.push(i); });
+  if (ringAt.length !== 1) return null;              // بی‌حلقه یا چندحلقه‌ای
+  const hub = ringAt[0];
+  const others = chain.map((id, i) => i).filter(i => i !== hub);
+  const allTerminal = others.every(i => {
+    const b = blockById.get(chain[i]);
+    return b && b.kind === "terminal" && (b.slots === 1 || b.slots == null);
+  });
+  if (!allTerminal) return null;                     // پل/انشعاب هست → مبهم
+  return others.map(i => [hub, i]);
+}
+
+/* اندیس‌های bonds از فضایِ blocks به فضایِ chain برده می‌شوند */
+function remapBonds(bonds, groupStart, chainLen) {
+  if (!Array.isArray(bonds)) return null;
+  const out = [];
+  bonds.forEach(pair => {
+    if (!Array.isArray(pair) || pair.length < 2) return;
+    const a = groupStart[pair[0]], b = groupStart[pair[1]];
+    if (a == null || b == null || a === b) return;
+    if (a < 0 || b < 0 || a >= chainLen || b >= chainLen) return;
+    out.push([a, b]);
+  });
+  return out.length ? out : null;
 }
 
 /* ---------- ۶-ب) نگهبانِ فرمول ---------- */
@@ -429,6 +475,12 @@ const OVERRIDES = {
   // مجموعش C4H6O3 می‌شود؛ فرمولِ ترکیب C3H6O2 است. گروهِ فرمات یک واحد است.
   "Ethyl formate": { chain: ["ethyl", "formate"] },
 
+  /* نرول و ژرانیول: ایزومرِ E/Z با امضای یکسان. متنِ ¹³C بانک هر دو را
+     یک‌شکل توصیف می‌کند، پس تگِ هندسه دستی افزوده می‌شود — همان سنجهٔ
+     استاندارد: متیلِ آلیلی ~۱۶ در E و ~۲۳ در Z. */
+  "Geraniol": { signature: ["c_allylic_me_e"] },
+  "Nerol":    { signature: ["c_allylic_me_z"] },
+
   /* نامِ بلوکِ «–OCH₂CH₂O– ×۲» در بانک، زنجیره را کم‌شمار می‌کرد:
      تترااتیلن‌گلیکول هشت CH₂ و سه اکسیژنِ اتری دارد، نه دو واحد.
      C: ۷+۷ (دو توسیل) + ۸ = ۲۲ ✓  O: ۶ (دو سولفونات) + ۳ = ۹ ✓ */
@@ -486,7 +538,14 @@ function main() {
     deriveMS(p.ms, DB).forEach(t => sig.add(t));
     deriveC13(p.c13).forEach(t => sig.add(t));
     deriveH1(p.h1).forEach(t => sig.add(t));
-    const chain = mapBlocks(p.blocks, validIds, unmapped);
+    const mapped = mapBlocks(p.blocks, validIds, unmapped);
+    const chain = mapped.chain;
+    let bonds = remapBonds(p.bonds, mapped.groupStart, chain.length);
+    let bondsInferred = false;
+    if (!bonds) {
+      const star = inferStarBonds(chain, blockById);
+      if (star) { bonds = star; bondsInferred = true; }
+    }
 
     const dropped = [];
     applyFormulaGuard(sig, p.formula, dropped);
@@ -501,13 +560,17 @@ function main() {
       overcount.push("  " + (p.en || p.name) + " (" + p.formula + "): " + finalChain.join("+"));
       finalChain = [];
     }
-    out.push({ en: p.en, src, signature: [...sig].sort(), chain: finalChain });
+    out.push({ en: p.en, src, signature: [...sig].sort(), chain: finalChain,
+               bonds: (ov.chain ? null : bonds), bondsInferred });
   }
 
+  const inferredCount = out.filter(r => r.bondsInferred).length;
+  const declaredCount = out.filter(r => r.bonds && !r.bondsInferred).length;
   const thin = out.filter(r => r.signature.length < 3 || !r.chain.length);
   console.log("ترکیب‌های پردازش‌شده: " + out.length);
   console.log("میانگین طول امضا: " + (out.reduce((s, r) => s + r.signature.length, 0) / out.length).toFixed(1));
   console.log("بدون زنجیره: " + out.filter(r => !r.chain.length).length);
+  console.log("توپولوژی: " + declaredCount + " اعلانِ دستی، " + inferredCount + " استنتاجِ ستاره");
   console.log("امضای کم‌پوشش (<۳ تگ): " + out.filter(r => r.signature.length < 3).length);
   if (unmapped.size) {
     console.log("\n--- نام‌های بلوکِ نگاشت‌نشده (" + unmapped.size + ") ---");
@@ -529,7 +592,7 @@ function main() {
 
   if (process.argv.includes("--report-only")) return;
 
-  const body = JSON.stringify(out.map(r => [r.en, r.signature, r.chain]));
+  const body = JSON.stringify(out.map(r => [r.en, r.signature, r.chain, r.bonds || 0]));
   const file = [
     "/* =====================================================================",
     "   database-signatures.js — تولیدی؛ دستی ویرایش نکنید",
@@ -562,7 +625,12 @@ function main() {
     "    targets.forEach(function (t) {",
     "      // قاعدهٔ عدم‌تخریب: امضای دست‌نویس هرگز بازنویسی نمی‌شود",
     "      if (!t.signature || !t.signature.length) { t.signature = row[1]; t.derivedSignature = true; }",
-    "      if (!t.chain || !t.chain.length) { t.chain = row[2]; t.derivedChain = true; }",
+    "      if (!t.chain || !t.chain.length) {",
+    "        t.chain = row[2]; t.derivedChain = true;",
+    "        // اتصال‌ها در همان فضایِ chain بازنویسی شده‌اند؛ اندیس‌های خامِ",
+    "        // روی blocks اگر نامی به چند بلوک بسط یافته باشد غلط‌اند.",
+    "        if (row[3]) t.bonds = row[3]; else if (t.bonds) delete t.bonds;",
+    "      }",
     "      applied++;",
     "    });",
     "  });",

@@ -397,6 +397,51 @@
     return chain.map(b => b.en.replace(/^-|-$/g, "")).join("–");
   }
 
+  /* ---------- ۵-الف. توپولوژیِ اتصالِ یک مرجع ----------
+     مسئله‌ای که حل می‌کند: `chain` یک آرایهٔ مرتب است، پس «همسایگی» را با
+     ترتیبِ آرایه می‌سنجیدیم. برای مولکولِ خطی درست است، ولی برای حلقهٔ
+     استخلاف‌دار نه — و همین دو باگِ واقعی ساخت: ۱-فنیل‌اتانول (که
+     هیدروکسیلش کنارِ حلقه افتاده بود) «فنول» خوانده شد، و
+     ۲-متیل-۴-نیتروفنول برعکس «الکل»، چون OH در آرایه از حلقه دور بود.
+
+     حالا هر مرجع می‌تواند اتصالِ واقعی را اعلام کند:
+       bonds: [[0,1],[1,2],[1,5]]   فهرستِ صریحِ پیوندها (انشعاب هم می‌شود)
+       ring: true                    میان‌بر: زنجیرهٔ خطی + بستنِ حلقه
+     اگر هیچ‌کدام نبود، همان زنجیرهٔ خطی فرض می‌شود، پس همهٔ دادهٔ موجود
+     بی‌تغییر کار می‌کند. */
+  const topoCache = new WeakMap();
+  function topology(ref) {
+    if (topoCache.has(ref)) return topoCache.get(ref);
+    const chain = ref.chain || [];
+    const n = chain.length;
+    const adj = Array.from({ length: n }, () => []);
+    const link = (a, b) => {
+      if (a === b || a < 0 || b < 0 || a >= n || b >= n) return;
+      if (adj[a].indexOf(b) < 0) adj[a].push(b);
+      if (adj[b].indexOf(a) < 0) adj[b].push(a);
+    };
+    if (Array.isArray(ref.bonds) && ref.bonds.length) {
+      ref.bonds.forEach(pair => { if (Array.isArray(pair)) link(pair[0], pair[1]); });
+    } else {
+      for (let i = 0; i < n - 1; i++) link(i, i + 1);
+      if (ref.ring && n > 2) link(n - 1, 0);
+    }
+    topoCache.set(ref, adj);
+    return adj;
+  }
+
+  /* همسایه‌های یک بلوک، بر پایهٔ توپولوژی (نه ترتیبِ آرایه) */
+  function neighboursOf(ref, blockId) {
+    const chain = ref.chain || [];
+    const adj = topology(ref);
+    const out = new Set();
+    chain.forEach((id, i) => {
+      if (id !== blockId) return;
+      (adj[i] || []).forEach(j => out.add(chain[j]));
+    });
+    return out;
+  }
+
   /* ---------- ۵-ب. شواهد ضمنیِ یک مرجع (از بلوک‌ها و فرمول) ---------- */
   const impliedCache = new WeakMap();
   function impliedEvidence(ref) {
@@ -410,10 +455,10 @@
     // مجاور یک بلوک کربونیل باشد، پروتون ۱.۵–۲.۵ قطعی است.
     const alpha = DB.alphaCapableBlocks || [];
     const carbonyl = DB.carbonylBlocks || [];
-    for (let i = 0; i < chain.length - 1; i++) {
-      const a = chain[i], b = chain[i + 1];
-      if ((carbonyl.includes(a) && alpha.includes(b)) ||
-          (carbonyl.includes(b) && alpha.includes(a))) { out.add("h_alpha"); break; }
+    const adj = topology(ref);
+    for (let i = 0; i < chain.length; i++) {
+      if (!carbonyl.includes(chain[i])) continue;
+      if ((adj[i] || []).some(j => alpha.includes(chain[j]))) { out.add("h_alpha"); break; }
     }
     // بلوک acyl (–COCH₃) خودش کربونیل و متیل آلفا را با هم دارد
     if (chain.includes("acyl")) out.add("h_alpha");
@@ -425,9 +470,9 @@
       const at = [];
       chain.forEach((id, i) => { if (id === rule.block) at.push(i); });
       if (!at.length) return;
-      const touches = near => at.some(i =>
-        (i > 0 && near.includes(chain[i - 1])) ||
-        (i < chain.length - 1 && near.includes(chain[i + 1])));
+      // همسایگی از گرافِ اتصال، نه از ترتیبِ آرایه
+      const nb = neighboursOf(ref, rule.block);
+      const touches = near => near.some(x => nb.has(x));
       // شکلِ چندحالته: نخستین حالتِ منطبق برنده است (مثلاً هیدروکسیل که
       // بر پایهٔ همسایه فنول/انول/الکل می‌شود و هر سه تستِ متفاوتی دارند)
       if (rule.cases) {
@@ -537,6 +582,20 @@
       const implied = impliedEvidence(r);
       const impliedHit = [...implied].filter(t => ev.has(t)).length;
       if (implied.size) score += 0.3 * (impliedHit / implied.size);
+      /* چرا شمارشِ پیکِ ¹³C در رتبه‌بندیِ مراجع دخالت نمی‌کند:
+         روی کاغذ این تنها سنجه‌ای است که ایزومرهای هم‌بلوک را جدا می‌کند
+         (اورتو-زایلن چهار محیط، متا-زایلن پنج). اما دقتِ predictSymmetry
+         روی همین کتابخانه اندازه‌گیری شد: ۳۷٪ تطابقِ دقیق و ۶۵٪ با خطای ±۱،
+         و از ۱۶۷ نمونه در ۵۹ مورد کم‌تر از واقعیت پیش‌بینی می‌کند
+         (فلوئورنون: پیش‌بینی ۱، واقعیت ۷). چون جریمهٔ «مشاهده > پیش‌بینی»
+         دقیقاً در همین موارد فعال می‌شود، کاربری که عددِ درست را وارد کند
+         پاسخِ درست را پایین می‌برد — بدتر از نداشتنِ این سنجه.
+         ریشه همان محدودیتِ زنجیرهٔ خطی است (حلقه و انشعاب را نمی‌تواند
+         بیان کند)؛ تا وقتی تقارن از گرافِ اتصال محاسبه نشود، این عدد
+         نباید در امتیاز دخالت کند. شمارشِ پیک هنوز به موتور می‌رسد و
+         بررسیِ تناقضِ «پیک بیش از کربنِ فرمول» را فعال می‌کند — آن یکی
+         روی فرمول حساب می‌شود، نه روی این پیش‌بینی، پس قابل‌اعتماد است. */
+
       // اگر فرمول داریم و می‌خواند، پاداش
       if (formulaObj && formulaObj.formula && r.formula) {
         const same = atomsEqual(parseFormula(r.formula), formulaObj.atoms);
@@ -618,7 +677,10 @@
   function analyze(state) {
     const ev = collectEvidence(state);
     let formulaObj = state.formulaObj || null;
-    const obs = { c13Count: state.obsC13Count || null, h1Count: state.obsH1Count || null };
+    // ورودی‌های data-sig رشته‌اند؛ بدونِ عددی‌سازی، مقایسهٔ === با
+    // predictedC13 همیشه false می‌شد و پاداشِ تقارن بی‌اثر می‌ماند.
+    const num = v => { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? n : null; };
+    const obs = { c13Count: num(state.obsC13Count), h1Count: num(state.obsH1Count) };
     const contradictions = detectContradictions(ev, formulaObj, obs);
     const references = matchReferences(ev, formulaObj);
     const traps = detectExamTraps(ev);
@@ -631,7 +693,7 @@
 
   const API = {
     deriveFromMass, massToFormulas, deriveFromAtoms, parseFormula, formulaString,
-    impliedEvidence,          // بیرون‌داده برای ابزارهای ممیزی (tools/) تا منطق کپی نشود atomsMass,
+    impliedEvidence, topology, neighboursOf,   // بیرون‌داده برای ابزارهای ممیزی (tools/) atomsMass,
     collectEvidence, detectCore, assemble, matchReferences, connectivityScore,
     detectContradictions, detectExamTraps, predictSymmetry, analyze
   };

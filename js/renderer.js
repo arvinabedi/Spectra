@@ -12,6 +12,13 @@
   const BASE = 90;   // خط پایه عمودی
   const H = 180;     // ارتفاع بوم
 
+  /* گریزِ متن برای مقدارِ attribute (نامِ دسترس‌پذیر) */
+  function escAttr(v) {
+    return String(v == null ? "" : v)
+      .replace(/&/g, "&amp;").replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
   /* --- توابع پایه ترسیم --- */
   function line(x1, y1, x2, y2, w = 2, c = COL.bond) {
     return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${c}" stroke-width="${w}" stroke-linecap="round"/>`;
@@ -361,7 +368,9 @@
     const H2 = top + rowH * (steps.length + 1) + traceH + 26;
     const cx = W / 2;
     const px = v => (Math.round(v * 10) / 10);
-    let s = `<svg direction="ltr" viewBox="0 0 ${W} ${H2}" xmlns="${NS}" font-family="Vazirmatn, Tahoma, sans-serif" role="img">`;
+    const aria = "درختِ شکافتِ متوالی با " + steps.length + " کوپلاژ" +
+      (steps.length ? ": " + steps.map((c, i) => "J" + (i + 1) + " برابر " + c.j + " هرتز با " + ((c.n || 1) + 1) + " خط").join("، ") : "");
+    let s = `<svg direction="ltr" viewBox="0 0 ${W} ${H2}" xmlns="${NS}" font-family="Vazirmatn, Tahoma, sans-serif" role="img" aria-label="${escAttr(aria)}">`;
     s += `<text x="${cx}" y="22" fill="${COL.accent}" font-size="14" text-anchor="middle">درخت شکافت متوالی (n+1) و مولتی‌پلتِ حاصل</text>`;
 
     // سطح ۰: یک خطِ منفرد با وزن ۱
@@ -489,7 +498,11 @@
     const Y = ppm => gy0 + (1 - (ppm - yr[0]) / (yr[1] - yr[0])) * gh;
     const col = opt.color || COL.accent;
 
-    let s = `<svg direction="ltr" viewBox="0 0 ${W} ${Hh}" width="100%" xmlns="${NS}" font-family="Vazirmatn, Tahoma, sans-serif" role="img">`;
+    const offDiag = (opt.cross || []).filter(c => Math.abs(c.x - c.y) > 1e-6);
+    const aria = (opt.title || "نقشهٔ همبستگیِ دوبعدی") + "، " +
+      (opt.xPeaks || []).length + " سیگنال روی هر محور و " + offDiag.length + " لکهٔ همبستگیِ خارج از قطر" +
+      (offDiag.length ? ": " + offDiag.map(c => c.x + " با " + c.y).join("، ") : "");
+    let s = `<svg direction="ltr" viewBox="0 0 ${W} ${Hh}" width="100%" xmlns="${NS}" font-family="Vazirmatn, Tahoma, sans-serif" role="img" aria-label="${escAttr(aria)}">`;
     if (opt.title) s += `<text x="${W / 2}" y="20" fill="${col}" font-size="13.5" text-anchor="middle">${opt.title}</text>`;
 
     s += `<rect x="${gx0}" y="${gy0}" width="${gw}" height="${gh}" fill="#0b1224" stroke="${COL.ring}" stroke-width="1" stroke-opacity="0.45"/>`;
@@ -601,7 +614,11 @@
     const yTop = padT, yBot = padT + plotH;
     const px = n => (Math.round(n * 10) / 10);
 
-    let s = `<svg direction="ltr" viewBox="0 0 ${W} ${Hh}" width="100%" xmlns="${NS}" font-family="Vazirmatn, Tahoma, sans-serif" role="img">`;
+    const aria = clusters.length
+      ? "خوشهٔ ایزوتوپیِ طیفِ جرمی با " + clusters.length + " پیک: " +
+        clusters.map(c => (baseMass != null ? baseMass + c.massOffset : c.label) + " با شدتِ " + Math.round(c.relIntensity || 0) + " درصد").join("، ")
+      : "خوشهٔ ایزوتوپی — هنوز الگویی انتخاب نشده";
+    let s = `<svg direction="ltr" viewBox="0 0 ${W} ${Hh}" width="100%" xmlns="${NS}" font-family="Vazirmatn, Tahoma, sans-serif" role="img" aria-label="${escAttr(aria)}">`;
     s += `<rect x="${padL}" y="${yTop}" width="${inner}" height="${plotH}" rx="5" fill="#0b1224" stroke="${COL.ring}" stroke-width="1" stroke-opacity="0.35"/>`;
 
     if (!clusters.length) {
@@ -747,7 +764,13 @@
       });
     });
 
-    let s = `<svg direction="ltr" viewBox="0 0 ${W} ${Hh}" width="100%" xmlns="${NS}" font-family="Vazirmatn, Tahoma, sans-serif" role="img">`;
+    /* نامِ دسترس‌پذیر: role="img" بدونِ نام، برای صفحه‌خوان یک تصویرِ
+       بی‌توضیح است. خلاصه‌ای از آنچه دیده می‌شود ساخته می‌شود. */
+    const aria = (kind === "ir" ? "طیفِ فروسرخ" : "طیفِ رزونانس مغناطیسی") +
+      " از " + max + " تا " + min + " " + (opt.unit || "") +
+      (active.length ? "، " + active.length + " باندِ فعال: " + active.map(b => b.label).join("، ")
+                     : "، هنوز باندی ثبت نشده");
+    let s = `<svg direction="ltr" viewBox="0 0 ${W} ${Hh}" width="100%" xmlns="${NS}" font-family="Vazirmatn, Tahoma, sans-serif" role="img" aria-label="${escAttr(aria)}">`;
 
     /* --- بسترِ نمودار + شبکه --- */
     s += `<rect x="${padL}" y="${yTop}" width="${inner}" height="${plotH}" rx="5" fill="#0b1224" stroke="${COL.ring}" stroke-width="1" stroke-opacity="0.35"/>`;

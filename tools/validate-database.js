@@ -252,6 +252,61 @@ if (Inference && Inference.impliedEvidence) {
   });
 }
 
+/* ---------- ۳-ج) درستیِ توپولوژیِ اتصال ----------
+   اندیس‌های bonds به chain اشاره می‌کنند. اگر از بازه بیرون بزنند یا گراف
+   دوپاره شود، «همسایگی» بی‌صدا غلط می‌شود و قواعدِ شیمیِ تر نتیجهٔ اشتباه
+   می‌دهند — همان دسته‌ای که ۱-فنیل‌اتانول و ۲-متیل-۴-نیتروفنول را خراب کرد. */
+compounds.forEach(({ rec, src }) => {
+  if (!Array.isArray(rec.bonds) || !rec.bonds.length) return;
+  const n = (rec.chain || []).length;
+  const name = rec.en || rec.name;
+  let broken = false;
+  rec.bonds.forEach(pair => {
+    if (!Array.isArray(pair) || pair.length < 2) { broken = true; return; }
+    const [a, b] = pair;
+    if (!Number.isInteger(a) || !Number.isInteger(b) || a === b || a < 0 || b < 0 || a >= n || b >= n) broken = true;
+  });
+  if (broken) {
+    err("[" + src + "] «" + name + "» اتصالی دارد که به بلوکِ موجود اشاره نمی‌کند (طولِ زنجیره " + n + ").");
+    return;
+  }
+  // گراف باید یک‌پارچه باشد؛ بلوکِ جدامانده یعنی مولکولِ دوتکه
+  const adj = Array.from({ length: n }, () => []);
+  rec.bonds.forEach(([a, b]) => { adj[a].push(b); adj[b].push(a); });
+  const seenN = new Set([0]);
+  const stack = [0];
+  while (stack.length) {
+    const cur = stack.pop();
+    adj[cur].forEach(x => { if (!seenN.has(x)) { seenN.add(x); stack.push(x); } });
+  }
+  if (seenN.size !== n)
+    err("[" + src + "] «" + name + "» گرافِ اتصالش یک‌پارچه نیست: " + (n - seenN.size) + " بلوک جدا مانده.");
+});
+
+/* نامزدهای مهاجرت: حلقهٔ آروماتیک با سه استخلاف یا بیشتر، بدونِ اعلانِ
+   اتصال. برای این‌ها خواندنِ خطی می‌تواند استخلاف را به استخلافِ دیگر
+   بچسباند به‌جای حلقه — منشأِ همان دو باگ. هشدار است نه خطا، چون بسیاری
+   از آن‌ها اتفاقی درست خوانده می‌شوند. */
+{
+  const RINGS = ["phenyl", "phenylene_p", "phenylene_o", "phenylene_m", "tolyl_p",
+                 "naphthyl", "quinolinyl", "pyridin_3yl", "furan_2yl"];
+  const cand = [];
+  compounds.forEach(({ rec }) => {
+    if (Array.isArray(rec.bonds) && rec.bonds.length) return;
+    const chain = rec.chain || [];
+    if (chain.length < 4) return;
+    if (!chain.some(id => RINGS.includes(id))) return;
+    const subs = chain.filter(id => !RINGS.includes(id)).length;
+    if (subs >= 3) cand.push(rec.en || rec.name);
+  });
+  if (cand.length) {
+    warn(cand.length + " ترکیب حلقهٔ آروماتیک با ۳+ استخلاف دارند و اتصالِ صریح اعلام نکرده‌اند؛ " +
+         "خواندنِ خطی می‌تواند استخلاف را به استخلاف بچسباند به‌جای حلقه. " +
+         "نمونه: " + cand.slice(0, 4).join("، ") + (cand.length > 4 ? " …" : "") +
+         "  (افزودنِ bonds:[[0,i],…] یا ring:true رفعش می‌کند)");
+  }
+}
+
 /* ---------- ۴) تکراری‌ها ---------- */
 ["reference", "fieldProblems"].forEach(key => {
   const seen = new Map();

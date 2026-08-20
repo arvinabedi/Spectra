@@ -422,7 +422,11 @@
         <h3>۳) بررسی تقارن — پیک ¹³C در برابر کربنِ فرمول <span class="ic">⚖</span></h3>
         <div class="note blue">تعداد پیک ¹³C مشاهده‌شده و تعداد کربنِ فرمول را وارد کنید تا درجهٔ تقارن و کاهش سیگنال به‌دست آید.</div>
         <div class="row c3">
-          <div><label>تعداد پیک ¹³C مشاهده‌شده</label><input type="number" id="sym-cpeaks" placeholder="مثلاً 3"></div>
+          <!-- data-sig این عدد را به State و از آن‌جا به موتور استنتاج می‌رساند.
+               پیش‌تر فقط ماشین‌حسابِ همین کارت آن را می‌خواند، و در نتیجه دو
+               سنجهٔ آمادهٔ موتور (پاداشِ تطابقِ تقارن و تناقضِ «پیک بیش از
+               کربن») هرگز فعال نمی‌شدند. -->
+          <div><label>تعداد پیک ¹³C مشاهده‌شده</label><input type="number" id="sym-cpeaks" data-sig="obsC13Count" placeholder="مثلاً 3"></div>
           <div><label>تعداد کربن فرمول</label><input type="number" id="sym-cformula" placeholder="خالی = از فرمول فعال"></div>
           <div style="display:flex;align-items:flex-end"><button class="btn purple" style="width:100%;margin:0" onclick="runSymmetryCheck()">بررسی تقارن</button></div>
         </div>
@@ -918,6 +922,7 @@
           <div>
             <label>حالت</label>
             <select id="pr-mode">
+              <option value="smart">هوشمند — مرورِ فاصله‌دار (اشتباه‌ها اول)</option>
               <option value="unseen">فقط حل‌نشده‌ها</option>
               <option value="wrong">فقط اشتباه‌های قبلی</option>
               <option value="all">همه</option>
