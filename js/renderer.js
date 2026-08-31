@@ -5,10 +5,16 @@
    ===================================================================== */
 (function (root) {
   const NS = "http://www.w3.org/2000/svg";
+  /* رنگ‌ها از متغیرهای CSS می‌آیند تا با پوستهٔ روشن/تاریک بچرخند. این
+     SVGها درون‌خطی‌اند، پس var() در صفتِ fill/stroke کار می‌کند. پیش‌تر
+     مقادیر ثابتِ «روشن روی تاریک» بودند و روی بومِ روشن اتم‌ها ناپیدا
+     می‌شدند. */
   const COL = {
-    bond: "#cbd5e1", atom: "#f1f5f9", o: "#f87171", n: "#60a5fa",
-    x: "#34d399", accent: "#22d3ee", ring: "#94a3b8"
+    bond: "var(--plot-bond)", atom: "var(--plot-atom)", o: "var(--plot-o)",
+    n: "var(--plot-n)", x: "var(--plot-x)", accent: "var(--plot-accent)",
+    ring: "var(--plot-ring)"
   };
+  const WELL = "var(--plot-well)";
   const BASE = 90;   // خط پایه عمودی
   const H = 180;     // ارتفاع بوم
 
@@ -74,7 +80,7 @@
     // مسیر داخلیِ نیم‌دایره به‌جای دایرهٔ کامل، برای اشارهٔ بصری به عدم تقارن حلقهٔ هترو
     s += `<path d="M ${cx - r * 0.5} ${cy - r * 0.45} A ${r * 0.55} ${r * 0.55} 0 1 1 ${cx + r * 0.5} ${cy + r * 0.45}" fill="none" stroke="${COL.ring}" stroke-width="1.5"/>`;
     const [hx, hy] = pts[heteroPos];
-    s += `<circle cx="${hx}" cy="${hy}" r="9" fill="#0f172a" stroke="${heteroColor}" stroke-width="1.5"/>`;
+    s += `<circle cx="${hx}" cy="${hy}" r="9" fill="${WELL}" stroke="${heteroColor}" stroke-width="1.5"/>`;
     s += label(hx, hy, heteroSym, heteroColor, 12);
     return { svg: s, left: [cx - r, cy], right: [cx + r, cy], top: [cx, cy - r], bottom: [cx, cy + r] };
   }
@@ -97,7 +103,7 @@
     s += dbl(pts[1][0], pts[1][1], pts[2][0], pts[2][1], COL.ring);
     s += dbl(pts[3][0], pts[3][1], pts[4][0], pts[4][1], COL.ring);
     const [nx, ny] = pts[0];
-    s += `<circle cx="${nx}" cy="${ny}" r="9" fill="#0f172a" stroke="${heteroColor}" stroke-width="1.5"/>`;
+    s += `<circle cx="${nx}" cy="${ny}" r="9" fill="${WELL}" stroke="${heteroColor}" stroke-width="1.5"/>`;
     s += label(nx, ny, heteroSym + (nH ? "H" : ""), heteroColor, 11);
     // نقطهٔ اتصال به بقیهٔ زنجیره از رأس پایین‌راست حلقه (موضع ۲ نسبت به هترواتم)
     const exitPt = pts[2];
@@ -265,7 +271,7 @@
       case "sulfoxide": {
         const cx = x + 16;
         const s = line(x, y, cx, y) + dbl(cx, y, cx, y - 24, COL.o) + label(cx, y - 34, "O", COL.o) +
-                  label(cx + 4, y + 2, "S", "#facc15", 14) + line(cx, y, cx + 16, y);
+                  label(cx + 4, y + 2, "S", "var(--plot-s)", 14) + line(cx, y, cx + 16, y);
         return { svg: s, width: 32, entry: [x, y], exit: [cx + 16, y] };
       }
       case "sulfone": {
@@ -273,7 +279,7 @@
         const s = line(x, y, cx, y) +
                   dbl(cx, y, cx - 10, y - 22, COL.o) + label(cx - 14, y - 30, "O", COL.o) +
                   dbl(cx, y, cx + 10, y - 22, COL.o) + label(cx + 14, y - 30, "O", COL.o) +
-                  label(cx, y + 2, "S", "#facc15", 14) + line(cx, y, cx + 18, y);
+                  label(cx, y + 2, "S", "var(--plot-s)", 14) + line(cx, y, cx + 18, y);
         return { svg: s, width: 36, entry: [x, y], exit: [cx + 18, y] };
       }
       case "sulfonamide": {
@@ -281,7 +287,7 @@
         const s = line(x, y, cx, y) +
                   dbl(cx, y, cx - 10, y - 22, COL.o) + label(cx - 14, y - 30, "O", COL.o) +
                   dbl(cx, y, cx + 10, y - 22, COL.o) + label(cx + 14, y - 30, "O", COL.o) +
-                  label(cx, y + 2, "S", "#facc15", 14) +
+                  label(cx, y + 2, "S", "var(--plot-s)", 14) +
                   line(cx, y, cx + 18, y + 14) + label(cx + 34, y + 18, "NH₂", COL.n);
         return { svg: s, width: 44, entry: [x, y] };
       }
@@ -521,7 +527,7 @@
     let s = `<svg direction="ltr" viewBox="0 0 ${W} ${Hh}" width="100%" xmlns="${NS}" font-family="Vazirmatn, Tahoma, sans-serif" role="img" aria-label="${escAttr(aria)}">`;
     if (opt.title) s += `<text x="${W / 2}" y="20" fill="${col}" font-size="13.5" text-anchor="middle">${opt.title}</text>`;
 
-    s += `<rect x="${gx0}" y="${gy0}" width="${gw}" height="${gh}" fill="#0b1224" stroke="${COL.ring}" stroke-width="1" stroke-opacity="0.45"/>`;
+    s += `<rect x="${gx0}" y="${gy0}" width="${gw}" height="${gh}" fill="${WELL}" stroke="${COL.ring}" stroke-width="1" stroke-opacity="0.45"/>`;
 
     /* --- شبکه روی محلِ هر سیگنال --- */
     (opt.xPeaks || []).forEach(p => {
@@ -635,7 +641,7 @@
         clusters.map(c => (baseMass != null ? baseMass + c.massOffset : c.label) + " با شدتِ " + Math.round(c.relIntensity || 0) + " درصد").join("، ")
       : "خوشهٔ ایزوتوپی — هنوز الگویی انتخاب نشده";
     let s = `<svg direction="ltr" viewBox="0 0 ${W} ${Hh}" width="100%" xmlns="${NS}" font-family="Vazirmatn, Tahoma, sans-serif" role="img" aria-label="${escAttr(aria)}">`;
-    s += `<rect x="${padL}" y="${yTop}" width="${inner}" height="${plotH}" rx="5" fill="#0b1224" stroke="${COL.ring}" stroke-width="1" stroke-opacity="0.35"/>`;
+    s += `<rect x="${padL}" y="${yTop}" width="${inner}" height="${plotH}" rx="5" fill="${WELL}" stroke="${COL.ring}" stroke-width="1" stroke-opacity="0.35"/>`;
 
     if (!clusters.length) {
       s += `<line x1="${padL}" y1="${yBot - 2}" x2="${padL + inner}" y2="${yBot - 2}" stroke="${COL.ring}" stroke-width="1.4" stroke-opacity="0.5" stroke-dasharray="4 4"/>`;
@@ -789,7 +795,7 @@
     let s = `<svg direction="ltr" viewBox="0 0 ${W} ${Hh}" width="100%" xmlns="${NS}" font-family="Vazirmatn, Tahoma, sans-serif" role="img" aria-label="${escAttr(aria)}">`;
 
     /* --- بسترِ نمودار + شبکه --- */
-    s += `<rect x="${padL}" y="${yTop}" width="${inner}" height="${plotH}" rx="5" fill="#0b1224" stroke="${COL.ring}" stroke-width="1" stroke-opacity="0.35"/>`;
+    s += `<rect x="${padL}" y="${yTop}" width="${inner}" height="${plotH}" rx="5" fill="${WELL}" stroke="${COL.ring}" stroke-width="1" stroke-opacity="0.35"/>`;
     for (let g = 1; g < 4; g++) {
       const gy = yTop + (plotH * g) / 4;
       s += `<line x1="${padL}" y1="${px(gy)}" x2="${padL + inner}" y2="${px(gy)}" stroke="${COL.ring}" stroke-width="0.5" stroke-opacity="0.16"/>`;
@@ -882,7 +888,7 @@
         ? Math.min(yBot - 8, yTop + 5 + a * usable + 11)
         : Math.max(yTop + 9, yBot - 3 - a * usable - 11);
       const n = active.indexOf(p.band) + 1;
-      s += `<circle cx="${px(x)}" cy="${px(y)}" r="7.5" fill="#0b1224" stroke="${col}" stroke-width="1.3"/>`;
+      s += `<circle cx="${px(x)}" cy="${px(y)}" r="7.5" fill="${WELL}" stroke="${col}" stroke-width="1.3"/>`;
       s += `<text x="${px(x)}" y="${px(y)}" fill="${col}" font-size="10" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="Consolas,monospace">${n}</text>`;
     });
 
@@ -914,8 +920,8 @@
           const col = b.color || COL.accent;
           const rng = b.ranges.map(([lo, hi]) => `${hi}–${lo}`).join(" · ");
           return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);color:var(--muted)">
-            <b style="min-width:15px;height:15px;border-radius:4px;background:${col};color:#0b1020;font-size:var(--fs-2xs);display:inline-flex;align-items:center;justify-content:center;font-family:Consolas,monospace">${i + 1}</b>
-            <span style="color:${col}">${b.label}</span>
+            <b style="min-width:15px;height:15px;border-radius:4px;background:${col};color:var(--plot-badge-ink);font-size:var(--fs-2xs);display:inline-flex;align-items:center;justify-content:center;font-family:Consolas,monospace">${i + 1}</b>
+            <span style="color:var(--ink-2)">${b.label}</span>
             <span class="en" style="font-size:var(--fs-2xs);opacity:.75">${rng}</span></span>`;
         }).join("") + `</div>`;
     }
@@ -923,8 +929,11 @@
   }
 
   /* --- نمودار تقارن مولکولی: اتم‌های هم‌محیط با رنگ یکسان --- */
-  const SYM_PALETTE = ["#22d3ee", "#a855f7", "#f472b6", "#34d399", "#fbbf24",
-    "#f87171", "#60a5fa", "#a3e635", "#fb923c", "#e879f9", "#2dd4bf", "#c084fc"];
+  /* دوازده رنگِ متمایز برای کلاس‌های تقارن — هر دو پوسته مقدارِ خودش را
+     در --sym-1 … --sym-12 دارد. */
+  const SYM_PALETTE = Array.from({ length: 12 }, function (_, i) {
+    return "var(--sym-" + (i + 1) + ")";
+  });
   function symmetrySVG(data) {
     if (!data || !data.atoms || !data.atoms.length) return "";
     const A = data.atoms, B = data.bonds;
@@ -964,7 +973,7 @@
 
   /* --- فلوچارت شماتیک شناسایی کلاسیک (طرح حلالیت شرینر) --- */
   function flowNode(x, y, w, txt, kind) {
-    const col = kind === "q" ? COL.accent : kind === "res" ? "#34d399" : COL.ring;
+    const col = kind === "q" ? COL.accent : kind === "res" ? "var(--plot-x)" : COL.ring;
     const h = 34;
     return `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${col}" fill-opacity="0.12" stroke="${col}" stroke-width="1.6"/>` +
       `<text x="${x + w / 2}" y="${y + 22}" fill="${col === COL.ring ? COL.atom : col}" font-size="12" text-anchor="middle">${txt}</text></g>`;

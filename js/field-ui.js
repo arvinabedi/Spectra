@@ -228,14 +228,14 @@
     // ۱) تطبیق در بانک سوالات فیلد
     const inBank = (DB.fieldProblems || []).filter(p => normFormula(p.formula) === target);
     if (inBank.length) {
-      html += `<div class="hero-section-title" style="margin-top:6px">◆ سوالات فیلد با این فرمول (${inBank.length})</div>`;
+      html += `<div class="hero-section-title" style="margin-top:6px">سوالات فیلد با این فرمول (${inBank.length})</div>`;
       html += `<div class="grid bank-grid">${inBank.map(p => problemCard(p, { open: inBank.length <= 4 })).join("")}</div>`;
     }
 
     // ۲) تطبیق مولکول‌های مرجع (مستقل از بانک، از موتور اصلی)
     const refs = (DB.reference || []).filter(r => normFormula(r.formula) === target);
     if (refs.length) {
-      html += `<div class="hero-section-title">📚 مولکول‌های مرجع هم‌فرمول (${refs.length})</div>`;
+      html += `<div class="hero-section-title">مولکول‌های مرجع هم‌فرمول (${refs.length})</div>`;
       html += refs.map(r => `<div class="ref-row" style="align-items:flex-start">
         <span class="cand-name" style="min-width:170px">${esc(r.name)} <span class="en">${esc(r.formula)}</span></span>
         <span style="flex:1;font-size:var(--fs-sm);color:var(--muted)">${esc(r.note || "")}</span>
@@ -250,7 +250,7 @@
       if (n % 2 === 1 && (h % 2 === 0)) hints.push("قاعدهٔ نیتروژن: با ۱ نیتروژن، جرم مولکولی فرد است.");
       if (x > 0) hints.push("هالوژن دارد → الگوی ایزوتوپی M/M+2 را در طیف جرمی بررسی کنید.");
       if (hints.length) {
-        html += `<div class="hero-section-title">🧭 راهنمای سریع از فرمول</div>`;
+        html += `<div class="hero-section-title">راهنمای سریع از فرمول</div>`;
         html += `<ul style="margin:4px 0 0;padding-inline-start:18px;font-size:var(--fs-sm)">${hints.map(x => `<li style="margin-bottom:4px">${esc(x)}</li>`).join("")}</ul>`;
       }
     } else {

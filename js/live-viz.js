@@ -214,7 +214,7 @@
       }
       let h = "";
       if (anchors.length) {
-        h += `<div style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:6px">🎯 لنگرگاه‌های تشخیصی (${anchors.length}) — «اگر این را دیدی → این نتیجه»:</div>`;
+        h += `<div style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:6px">لنگرگاه‌های تشخیصی (${anchors.length}) — «اگر این را دیدی → این نتیجه»:</div>`;
         h += `<table style="margin:0 0 12px"><tr><th>اگر این را دیدی…</th><th>نتیجه</th></tr>` +
           anchors.map(a => `<tr><td class="en" style="font-size:var(--fs-xs)">${a.see}</td><td style="font-size:var(--fs-xs)"><b>${a.conclude}</b></td></tr>`).join("") +
           `</table>`;

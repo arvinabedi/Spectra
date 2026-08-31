@@ -279,15 +279,14 @@
   }
 
   function buildCard(opts) {
-    // opts: {id, color, title, icon, intro, filterId, tableHtml}
+    // opts: {id, title, intro, filterId, tableHtml}
     var card = document.createElement("div");
     card.className = "card span-all";
-    card.style.borderColor = "var(--" + opts.color + ")";
     card.innerHTML =
-      '<h3>' + opts.title + ' <span class="ic">' + opts.icon + '</span></h3>' +
+      '<h3>' + opts.title + '</h3>' +
       '<div class="note blue">' + opts.intro + '</div>' +
       '<input id="' + opts.filterId + '" type="text" placeholder="جستجو در جدول (نام گروه، توضیح، تکنیک)…" ' +
-      'style="width:100%;margin:6px 0;padding:8px;border-radius:8px;border:1px solid var(--muted);background:transparent;color:inherit">' +
+      'style="font-family:inherit;margin:8px 0 10px">' +
       '<div style="overflow:auto;max-height:520px">' + opts.tableHtml + '</div>';
     return card;
   }
@@ -323,7 +322,7 @@
 
     /* --- کارت ¹H در فاز ۳ (سبز) --- */
     var h1Card = buildCard({
-      id: "nmr-h1-lib", color: "green", icon: "📖", filterId: "nmr-h1-lib-filter",
+      id: "nmr-h1-lib", filterId: "nmr-h1-lib-filter",
       title: "۷) کتابخانهٔ تفصیلی پیک‌های ¹H — به تفکیک گروه عاملی",
       intro: "بیش از ۵۰ محیط پروتونی با بازهٔ دقیق δ، تعدد نوعی، انتگرال و نکتهٔ تشخیصی. مکملِ «یابندهٔ محیط ¹H».",
       tableHtml: '<table id="nmr-h1-lib-table" style="width:100%;border-collapse:collapse">' +
@@ -334,7 +333,7 @@
 
     /* --- کارت ¹³C در فاز ۲ (بنفش) --- */
     var c13Card = buildCard({
-      id: "nmr-c13-lib", color: "purple", icon: "📖", filterId: "nmr-c13-lib-filter",
+      id: "nmr-c13-lib", filterId: "nmr-c13-lib-filter",
       title: "۷) کتابخانهٔ تفصیلی پیک‌های ¹³C — با نوع DEPT",
       intro: "محیط‌های کربنی با بازهٔ δ، طبقه‌بندی DEPT (CH₃/CH₂/CH/Cq) و نکتهٔ تشخیصی. مکملِ «یابندهٔ محیط ¹³C».",
       tableHtml: '<table id="nmr-c13-lib-table" style="width:100%;border-collapse:collapse">' +
@@ -345,7 +344,7 @@
 
     /* --- کارت دوبعدی در فاز ۴ (فیروزه‌ای) --- */
     var twoDCard = buildCard({
-      id: "nmr-2d-ref", color: "cyan", icon: "🔗", filterId: "nmr-2d-ref-filter",
+      id: "nmr-2d-ref", filterId: "nmr-2d-ref-filter",
       title: "نمونه‌های کارشدهٔ همبستگی دوبعدی (COSY/HSQC/HMBC/NOESY)",
       intro: "منطق استنتاجی مولکول‌های کلیدی از گزارش مرجع: چه همبستگی‌ای، چه نتیجه‌ای. برای آموزش تفسیر ۲D و افتراق ایزومرها.",
       tableHtml: '<table id="nmr-2d-ref-table" style="width:100%;border-collapse:collapse">' +

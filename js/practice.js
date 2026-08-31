@@ -231,7 +231,7 @@
     if (!box || !p) return;
     revealed = true;
     box.innerHTML = `
-      <div class="hero-section-title" style="margin:14px 0 8px">◆ پاسخ</div>
+      <div class="hero-section-title" style="margin:14px 0 8px">پاسخ</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:baseline;margin-bottom:8px">
         <b style="font-size:var(--fs-md)">${esc(p.name)}</b>
         <span class="en" style="color:var(--muted)">${esc(p.en || "")}</span>
@@ -313,8 +313,9 @@
     const halo = ["Cl", "Br", "F", "I"].find(x => atoms[x]);
     if (halo) { const hs = el("a-hal"), hc = el("a-halc"); if (hs) hs.value = halo; if (hc) hc.value = atoms[halo]; }
     if (typeof root.runFormula === "function") runFormula();
-    const btn = document.querySelector(".phase-nav .phase-btn");
-    if (typeof root.switchPhase === "function" && btn) switchPhase("phase0", btn);
+    /* دکمه را پاس نمی‌دهیم: applyPhase خودش با phaseButton پیدایش می‌کند،
+       پس این‌جا به ساختارِ ناوبری گره نمی‌خوریم. */
+    if (typeof root.switchPhase === "function") switchPhase("phase0");
   }
 
   /* ---------- راه‌اندازی ---------- */

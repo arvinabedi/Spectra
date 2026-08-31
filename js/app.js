@@ -97,9 +97,18 @@
   /* =================================================================
      فاز ۰ — فرمول و جرم
      ================================================================= */
+  /* ورودیِ نامعتبر باید خودش هم علامت بخورد، نه فقط پیامِ زیرِ دکمه. */
+  function invalid(id, yes) {
+    const n = el(id);
+    if (!n) return;
+    if (yes) n.setAttribute("aria-invalid", "true");
+    else n.removeAttribute("aria-invalid");
+  }
+
   function runFormula() {
     const mode = $("input[name=formode]:checked").value;
     const out = el("out-formula");
+    invalid("f-mass", false); invalid("a-c", false);
     let f;
     if (mode === "mass") {
       const m = parseInt(el("f-mass").value) || 0;
@@ -107,7 +116,7 @@
       const o = parseInt(el("f-o").value) || 0;
       const hal = el("f-hal").value;
       const hc = parseInt(el("f-halc").value) || 0;
-      if (!m) return show(out, `<span class="tag-warn">جرم یون مولکولی را وارد کنید.</span>`);
+      if (!m) { invalid("f-mass", true); return show(out, `<span class="tag-warn">جرم یون مولکولی را وارد کنید.</span>`); }
       const res = Inference.massToFormulas(m, n, o, hal === "none" ? "none" : hal, hal === "none" ? 0 : (hc || 1));
       if (res.error) return show(out, `<span class="tag-warn">${res.error}</span>`);
       if (!res.list.length) return show(out, `<span class="tag-warn">هیچ فرمول معتبری برای این جرم یافت نشد.</span>`);
@@ -118,12 +127,14 @@
       ["C", "H", "N", "O"].forEach(elm => { const v = parseInt(el("a-" + elm.toLowerCase()).value) || 0; if (v) atoms[elm] = v; });
       const hal = el("a-hal").value, hc = parseInt(el("a-halc").value) || 0;
       if (hal !== "none" && hc) atoms[hal] = hc;
-      if (!atoms.C) return show(out, `<span class="tag-warn">حداقل تعداد کربن را وارد کنید.</span>`);
+      if (!atoms.C) { invalid("a-c", true); return show(out, `<span class="tag-warn">حداقل تعداد کربن را وارد کنید.</span>`); }
       f = Inference.deriveFromAtoms(atoms);
       renderFormulaResult(out, f, [f]);
     }
     State.formulaObj = f;
-    el("status-formula").innerHTML = `فرمول فعال: <b class="en">${f.formula}</b> · IHD=<b>${f.ihd}</b>`;
+    /* نوارِ زمینه یک‌جا نوشته می‌شود تا app.js و session.js دو شکلِ
+       متفاوت از یک واقعیت نسازند. */
+    if (window.Shell) Shell.setFormula(f.formula, f.ihd);
     syncHalideChecklist();
   }
   function renderFormulaResult(out, f, list) {
@@ -140,7 +151,7 @@
     show(out, h);
   }
   function ihdMeaning(ihd) {
-    if (ihd >= 4) return `<span class="tag-info">◆ IHD ≥ 4:</span> احتمال قوی حضور حلقه بنزن (۳ پیوند π + ۱ حلقه). در IR دنبال پاهای فیل ۱۶۰۰/۱۴۵۰ و کشش >۳۰۰۰ باشید.`;
+    if (ihd >= 4) return `<span class="tag-info">IHD ≥ 4:</span> احتمال قوی حضور حلقه بنزن (۳ پیوند π + ۱ حلقه). در IR دنبال پاهای فیل ۱۶۰۰/۱۴۵۰ و کشش >۳۰۰۰ باشید.`;
     if (ihd === 3) return `IHD = 3: ترکیبی از حلقه و پیوندهای دوگانه (مثلاً یک حلقه + یک کربونیل + یک پیوند دوگانه).`;
     if (ihd === 2) return `IHD = 2: یک پیوند سه‌گانه، یا دو دوگانه، یا دو حلقه.`;
     if (ihd === 1) return `IHD = 1: یک پیوند دوگانه (کربونیل/آلکن) یا یک حلقه آلیفاتیک.`;
@@ -315,7 +326,7 @@
     }
 
     // ساختارهای کاندید (قهرمان)
-    h += `<div class="hero-section-title">◆ ساختارهای کاندید (مونتاژ از قطعات)</div>`;
+    h += `<div class="hero-section-title">ساختارهای کاندید (مونتاژ از قطعات)</div>`;
     if (!res.formulaObj) {
       h += `<div class="empty-hint">ابتدا در فاز ۰ فرمول مولکولی را تأیید کنید تا موتور بتواند ساختار بسازد.</div>`;
     } else if (!res.candidates.length) {
@@ -355,13 +366,13 @@
     foundBlocks.sort((a, b) => b.fired.length - a.fired.length);
     const blocks = foundBlocks.map(x => x.b);
     if (blocks.length) {
-      h += `<div class="hero-section-title">🧩 قطعات ساختاری کشف‌شده از شواهد</div>`;
+      h += `<div class="hero-section-title">قطعات ساختاری کشف‌شده از شواهد</div>`;
       h += `<div>${Renderer.renderFragmentChips(blocks)}</div>`;
     }
 
     // مولکول‌های مرجع
     if (res.references.length) {
-      h += `<div class="hero-section-title">📚 نزدیک‌ترین مولکول‌های مرجع</div>`;
+      h += `<div class="hero-section-title">نزدیک‌ترین مولکول‌های مرجع</div>`;
       const top = res.references[0];
       res.references.forEach(r => {
         const pct = Math.round(Math.min(1, r.score) * 100);
@@ -546,7 +557,7 @@
       const det = Calc.classifyC13Detailed(r.ppm).filter(z => !r.hits.some(hh => hh.fa === z.fa));
       det.slice(0, 2).forEach(z => h += `<li style="opacity:.85">↳ جدول تفصیلی: <b>${z.fa}</b>${z.ex ? ` <span style="font-size:var(--fs-xs);color:var(--muted)">(${z.ex})</span>` : ""}</li>`);
     });
-    h += `</ul><div class="note amber">💡 یادآوری: کربن‌هایی که در طیف پهن‌باند هستند اما در DEPT-135 ظاهر نمی‌شوند، کربن نوع چهارم یا کربونیل‌اند.</div>`;
+    h += `</ul><div class="note amber">یادآوری: کربن‌هایی که در طیف پهن‌باند هستند اما در DEPT-135 ظاهر نمی‌شوند، کربن نوع چهارم یا کربونیل‌اند.</div>`;
     show(out, h);
   }
 
@@ -596,7 +607,7 @@
     }
 
     if (diastereo) {
-      h += `<div class="note amber">🚨 <b>هشدار دی‌استرئوتوپیک:</b> پروتون‌های −CH₂− مجاور مرکز کایرال از نظر مغناطیسی نامعادل‌اند؛ به‌جای یک سیگنال ساده، دو سیگنال با کوپلاژ ژمینال قوی (اغلب دو دوبلت درهم) دیده می‌شود.</div>`;
+      h += `<div class="note amber"><b>هشدار دی‌استرئوتوپیک:</b> پروتون‌های −CH₂− مجاور مرکز کایرال از نظر مغناطیسی نامعادل‌اند؛ به‌جای یک سیگنال ساده، دو سیگنال با کوپلاژ ژمینال قوی (اغلب دو دوبلت درهم) دیده می‌شود.</div>`;
     }
 
     if (!h) h = `<span class="tag-warn">حداقل یکی از فیلدها را پر کنید.</span>`;
@@ -728,7 +739,7 @@
         <span class="pill">±${r.tol}</span></div></div>`;
     (r.caveats || []).forEach(c => h += `<div class="note amber">⚠ ${c}</div>`);
     if (r.lit && r.lit.length) {
-      h += `<div class="hero-section-title" style="margin:12px 0 6px;font-size:var(--fs-sm)">📚 گروه‌های اندازه‌گیری‌شده در این بازه (کتابخانهٔ ¹H)</div>`;
+      h += `<div class="hero-section-title" style="margin:12px 0 6px;font-size:var(--fs-sm)">گروه‌های اندازه‌گیری‌شده در این بازه (کتابخانهٔ ¹H)</div>`;
       h += `<table style="margin:0"><tr><th>گروه</th><th>بازهٔ مرجع</th><th>تعدد</th></tr>` +
         r.lit.map(z => `<tr><td class="en">${z.group}</td><td class="en" dir="ltr">${z.lo}–${z.hi}</td><td class="en">${z.mult || "—"}</td></tr>`).join("") +
         `</table><div style="font-size:var(--fs-xs);color:var(--muted);margin-top:4px">این‌ها مقادیر واقعیِ جدول مرجع‌اند، نه محاسبهٔ افزایشی — برای صحت‌سنجی تخمین بالا.</div>`;
@@ -747,7 +758,7 @@
     if (!r.hits.length) h += `<li>در جدول استاندارد کروموفور یافت نشد.</li>`;
     r.hits.forEach(z => h += `<li><b>${z.fa}</b> <span style="font-size:var(--fs-xs);color:var(--muted)">(ε نوعی: ${z.epsHint})</span><br><span style="font-size:var(--fs-xs);color:var(--muted)">${z.note}</span></li>`);
     h += `</ul>`;
-    if (r.epsNote) h += `<div class="note blue">💡 تفسیر ε: ${r.epsNote}</div>`;
+    if (r.epsNote) h += `<div class="note blue">تفسیر ε: ${r.epsNote}</div>`;
     show(out, h);
   }
 

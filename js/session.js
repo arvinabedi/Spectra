@@ -90,9 +90,9 @@
     if (root.State) {
       root.State.data = Object.assign({}, snap.state || {});
       root.State.formulaObj = snap.formulaObj || null;
-      if (root.State.formulaObj && el("status-formula"))
-        el("status-formula").innerHTML =
-          `فرمول فعال: <b class="en">${sub(esc(root.State.formulaObj.formula))}</b> · IHD=<b>${esc(root.State.formulaObj.ihd)}</b>`;
+      if (root.Shell)
+        root.Shell.setFormula(root.State.formulaObj ? root.State.formulaObj.formula : null,
+                              root.State.formulaObj ? root.State.formulaObj.ihd : null);
     }
     // ۵) هم‌گام‌سازی نمایش‌ها
     if (typeof root.refreshEvidenceCount === "function") root.refreshEvidenceCount();
@@ -207,7 +207,7 @@
       else n.value = "";
     });
     if (root.State) { root.State.data = {}; root.State.formulaObj = null; }
-    if (el("status-formula")) el("status-formula").textContent = "—";
+    if (root.Shell) root.Shell.setFormula(null, null);
     ["out-formula", "out-isotope", "out-fragment", "out-carbonyl", "out-uv", "out-integrals",
      "field-match", "hero-body"].forEach(id => { const n = el(id); if (n) { n.innerHTML = ""; n.classList.remove("show"); } });
     const hero = el("master-hero"); if (hero) hero.classList.remove("show");
