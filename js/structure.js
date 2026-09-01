@@ -32,6 +32,10 @@
 
       if (ch === "(") { branch.push(prev); i++; continue; }
       if (ch === ")") { prev = branch.pop(); i++; continue; }
+      // جداکنندهٔ جزء‌ها (نمک‌ها، هیدرات‌ها، مخلوط‌ها): پیوندی زده نمی‌شود.
+      // پیش از این نویسهٔ «.» نادیده گرفته می‌شد و اتم بعدی به اتم قبلی می‌چسبید،
+      // یعنی «CCO.CCO» به‌جای دو اتانول یک زنجیر چهارکربنه خوانده می‌شد.
+      if (ch === ".") { prev = null; pendingBond = null; i++; continue; }
       if (ch === "-" || ch === "=" || ch === "#" || ch === ":" || ch === "/" || ch === "\\") {
         if (ch !== "/" && ch !== "\\") pendingBond = bondOrder(ch);
         i++; continue;
@@ -123,19 +127,87 @@
     return mol;
   }
 
+  /* ---------- یافتن حلقه‌های کوچک (تا ۸ عضو) ----------
+     پیمایش عمق‌اول از هر اتم؛ هر حلقه فقط از کوچک‌ترین اندیسش شمرده
+     می‌شود (شرط v > start) و با کلید مرتب‌شده یکتاسازی می‌گردد. */
+  function findRings(mol, maxSize) {
+    const { atoms } = mol;
+    const n = atoms.length, seen = new Set(), rings = [];
+    const path = [], onPath = new Array(n).fill(false);
+    function dfs(start, cur, depth) {
+      path.push(cur); onPath[cur] = true;
+      for (const nb of atoms[cur]._nbr) {
+        const v = nb.n;
+        if (v === start && depth >= 3) {
+          const key = path.slice().sort((x, y) => x - y).join(",");
+          if (!seen.has(key)) { seen.add(key); rings.push(path.slice()); }
+        } else if (v > start && !onPath[v] && depth < maxSize) {
+          dfs(start, v, depth + 1);
+        }
+      }
+      path.pop(); onPath[cur] = false;
+    }
+    for (let s = 0; s < n; s++) dfs(s, s, 1);
+    return rings;
+  }
+
+  /* ---------- نرمال‌سازی رزونانسی مرتبهٔ پیوند در حلقه‌های مزدوج ----------
+     تقارن باید مستقل از این باشد که کاربر ساختار را به شکل آروماتیک
+     (c1ccccc1) نوشته یا به شکل کِکوله (C1=CC=CC=C1). در شکل کِکوله
+     تناوب یک‌درمیانِ پیوندها اتم‌های واقعاً هم‌ارز را از هم جدا می‌کرد:
+     تولوئن ۷ محیط ¹³C می‌داد به‌جای ۵، و نفتالین ۵ به‌جای ۳ — یعنی
+     برنامه به دانشجویی که پاسخ درست را با ساختار کِکوله وارد کرده بود
+     می‌گفت تعداد سیگنال‌هایش با طیف نمی‌خواند.
+
+     راه‌حل: در حلقه‌ای که همهٔ اتم‌هایش sp² (یا هترواتمِ دهندهٔ جفت
+     الکترون مانند O در فوران) هستند و دست‌کم یک پیوند دوگانهٔ درون‌حلقه
+     دارد، مرتبهٔ همهٔ پیوندهای حلقه برای «نشانوندِ تقارن» ۱٫۵ گرفته
+     می‌شود — یعنی میانگین‌گیری رزونانسی. این کار فقط کلاس‌ها را ادغام
+     می‌کند و هرگز آن‌ها را نمی‌شکند.
+
+     نکته: مرتبهٔ اصلی پیوند (x.o) دست‌نخورده می‌ماند؛ فقط x.res ساخته
+     می‌شود. پس شمارش هیدروژن، فرمول مولکولی و DBE اصلاً تغییر نمی‌کنند. */
+  const LONE_PAIR = { N: 1, O: 1, S: 1, P: 1 };
+  function normalizeResonance(mol) {
+    const { atoms } = mol;
+    atoms.forEach(a => a._nbr.forEach(x => { x.res = x.o; }));
+    const sp2 = atoms.map(a => a.arom || a._nbr.some(x => x.o >= 2));
+    findRings(mol, 8).forEach(ring => {
+      if (ring.length < 4) return;
+      const inRing = new Set(ring);
+      let nSp2 = 0;
+      for (const k of ring) {
+        if (sp2[k]) { nSp2++; continue; }
+        if (!LONE_PAIR[atoms[k].el]) return;   // کربن sp³ در حلقه ⇒ مزدوج نیست
+      }
+      // حداکثر دو اتمِ دهندهٔ جفت الکترون؛ بقیه باید sp² باشند
+      if (nSp2 < ring.length - 2) return;
+      let doubles = 0;
+      for (const k of ring)
+        for (const x of atoms[k]._nbr)
+          if (inRing.has(x.n) && x.o >= 2) doubles++;
+      if (doubles < 2) return;                 // هر پیوند دوبار شمرده شده
+      for (const k of ring)
+        for (const x of atoms[k]._nbr)
+          if (inRing.has(x.n)) x.res = 1.5;
+    });
+    return mol;
+  }
+
   /* ---------- پالایش رنگ (مورگان-وار) برای یافتن اتم‌های هم‌ارز ---------- */
   function refineClasses(mol) {
     const { atoms } = mol;
+    normalizeResonance(mol);
     // نشانوند اولیه: عنصر + آروماتیک + بار + H + درجه + چندگانهٔ مرتبهٔ پیوندها
     let labels = atoms.map(a => {
-      const orders = a._nbr.map(x => x.o).sort().join(",");
+      const orders = a._nbr.map(x => x.res).sort().join(",");
       return `${a.el}|${a.arom ? "a" : ""}|${a.charge}|H${a.H}|d${a.deg}|b${orders}`;
     });
     const idOf = arr => { const m = {}; let c = 0; return arr.map(x => (m[x] == null ? (m[x] = c++) : m[x])); };
     let cls = idOf(labels);
     for (let iter = 0; iter < atoms.length + 2; iter++) {
       const next = atoms.map((a, k) => {
-        const nb = a._nbr.map(x => `${cls[x.n]}:${x.o}`).sort().join(",");
+        const nb = a._nbr.map(x => `${cls[x.n]}:${x.res}`).sort().join(",");
         return `${cls[k]}|${nb}`;
       });
       const nc = idOf(next);
