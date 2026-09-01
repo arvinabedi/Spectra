@@ -12,8 +12,8 @@ where python >nul 2>nul
 if errorlevel 1 (
   echo.
   echo Python was not found on this system.
-  echo Use the direct launcher instead - the other .cmd file
-  echo in this folder - which needs nothing installed.
+  echo Use run.cmd instead - the direct launcher, which
+  echo needs nothing installed.
   echo.
   pause
   exit /b 1

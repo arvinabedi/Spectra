@@ -3,7 +3,7 @@ rem ===========================================================
 rem  Spectral Structure Determination - Android APK builder
 rem  Builds an installable .apk right next to this file.
 rem  Needs JDK 17 + Android SDK + Gradle.
-rem  See the Android guide (the "android" markdown file next to this one).
+rem  See ANDROID.md next to this file.
 rem  Just double-click this file.
 rem ===========================================================
 cd /d "%~dp0"
