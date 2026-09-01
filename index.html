@@ -8,8 +8,13 @@
 <meta name="theme-color" content="#f5f4f1" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0f1014" media="(prefers-color-scheme: dark)">
 <!-- آیکون به‌صورت SVG درون‌خطی (data URI): بدون فایل جداگانه، بدون درخواست
-     شبکه، و بدون خطای ۴۰۴ برای favicon.ico — همان بالن آزمایشگاهیِ سرآیند. -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-width='1.8'%3E%3Crect width='24' height='24' rx='5' fill='%230b0f1f' stroke='none'/%3E%3Cpath d='M9 4v5l-4 7a1.8 1.8 0 0 0 1.5 2.7h11A1.8 1.8 0 0 0 19 16l-4-7V4'/%3E%3Cpath d='M7.6 4h8.8M8.4 14h7.2'/%3E%3C/svg%3E">
+     شبکه، و بدون خطای ۴۰۴ برای favicon.ico.
+     همان نشانِ نوارِ کنار و همان نشانِ لانچرِ اندروید — حلقهٔ آروماتیک روی
+     طیف. برخلافِ بقیهٔ جاها این‌جا عمداً بشقابِ نیلیِ توپُر دارد: زبانهٔ
+     مرورگر پوستهٔ خودش را دارد، نه پوستهٔ برنامه را، و خطِ نیلی روی زبانهٔ
+     تیره تقریباً ناپیدا می‌شد. بشقاب همان ‎#4b52d9‎ لانچر است، پس نشان روی
+     هر زبانه‌ای یکسان و خوانا می‌ماند. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234b52d9'/%3E%3Cg transform='translate(16 16) scale(.86) translate(-16 -15.5)' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 3 22.58 6.8v7.6L16 18.2 9.42 14.4V6.8z'/%3E%3Ccircle cx='16' cy='10.6' r='4.1' stroke-width='1.9'/%3E%3Cpath d='M3 28h5.6l2.3-5.6 2.3 5.6h1.2L16 21l1.6 7h1.2l2.3-5.6 2.3 5.6H29'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -31,13 +36,19 @@
   <aside class="side" id="side">
     <div class="side-head">
       <span class="brand">
+        <!-- نشانِ برند: حلقهٔ آروماتیک روی طیف.
+             پیش از این بالنِ آزمایشگاهی بود — دقیقاً همان گلیفِ آیکونِ
+             مرحلهٔ ۶ («آنالیز کلاسیک»)، پس برند مثل یکی از بخش‌های خودِ
+             برنامه خوانده می‌شد. هندسه با tools/build-app-icons.py مشترک
+             است؛ اگر این‌جا عوض شد، آن‌جا هم باید عوض شود.
+             وزنِ خط ۲ (نه ۱٫۴۵ نسخهٔ لانچر) تا کنارِ آیکون‌های مرحله‌ها
+             که ۱٫۷ در بومِ ۲۴ هستند هم‌وزن دیده شود. -->
         <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+          <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2"
                stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 3v5.4L4.3 17a2 2 0 0 0 1.7 3h12a2 2 0 0 0 1.7-3L15 8.4V3"/>
-            <path d="M7.6 3h8.8M7.2 13.4h9.6"/>
-            <circle cx="10.4" cy="16.4" r=".9" fill="currentColor" stroke="none"/>
-            <circle cx="14" cy="17.8" r=".7" fill="currentColor" stroke="none"/>
+            <path d="M16 3 22.58 6.8v7.6L16 18.2 9.42 14.4V6.8z"/>
+            <circle cx="16" cy="10.6" r="4.1" stroke-width="1.6"/>
+            <path d="M3 28h5.6l2.3-5.6 2.3 5.6h1.2L16 21l1.6 7h1.2l2.3-5.6 2.3 5.6H29"/>
           </svg>
         </span>
         <span class="brand-txt">
@@ -1165,10 +1176,12 @@
 <script src="data/database-signatures.js"></script>
 <script src="data/nmr-peak-library.js"></script>
 <script src="data/spectra-manifest.js"></script>
+<!-- structure.js پیش از inference.js: ماژولِ تقارنِ موتور، مولکول را با
+     Structure.parseSMILES/refineClasses از بلوک‌ها سرِهم می‌کند. -->
+<script src="js/structure.js"></script>
 <script src="js/inference.js"></script>
 <script src="js/renderer.js"></script>
 <script src="js/calculators.js"></script>
-<script src="js/structure.js"></script>
 <script src="js/app.js"></script>
 <script src="js/field-ui.js"></script>
 <script src="js/live-viz.js"></script>
