@@ -61,6 +61,127 @@ try {
   Inference = sandbox.Inference;
 } catch (e) { warn("بارگذاری js/inference.js برای بررسی شواهد ضمنی نشد: " + e.message); }
 
+/* ---------- قالبِ اتمیِ بلوک‌ها (DB.blockStructures) ----------
+   ماژولِ تقارن مولکول را از این قالب‌ها می‌سازد، پس یک قالبِ غلط بی‌صدا
+   به عددِ تقارنِ غلط تبدیل می‌شود. سه چیز سنجیده می‌شود:
+     • SMILES خوانده شود،
+     • اتم‌هایی که تولید می‌کند (پس از پُرکردنِ اسلات‌ها) دقیقاً همان
+       چیزی باشد که خودِ بلوک در atoms اعلام کرده،
+     • طولِ attach با slots یکی باشد.
+   بلوکِ بی‌قالب فقط هشدار است: موتور در آن حالت عمداً سکوت می‌کند. */
+{
+  let St = null;
+  try {
+    vm.runInContext(fs.readFileSync(path.join(ROOT, "js/structure.js"), "utf8"), ctx, { filename: "js/structure.js" });
+    St = sandbox.Structure;
+  } catch (e) { warn("بارگذاری js/structure.js برای بررسی قالبِ بلوک‌ها نشد: " + e.message); }
+
+  if (St && DB.blockStructures) {
+    const noTemplate = [];
+    (DB.blocks || []).forEach(b => {
+      const t = DB.blockStructures[b.id];
+      if (!t) { noTemplate.push(b.id); return; }
+      if (!t.smiles || !Array.isArray(t.attach))
+        return err("قالبِ بلوکِ «" + b.id + "» ناقص است (smiles/attach لازم است).");
+      if (t.attach.length !== (b.slots || 1))
+        err("قالبِ بلوکِ «" + b.id + "»: attach " + t.attach.length + " نقطه دارد ولی slots برابرِ " + (b.slots || 1) + " است.");
+      let mol;
+      try { mol = St.parseSMILES(t.smiles); }
+      catch (e) { return err("SMILES بلوکِ «" + b.id + "» خوانده نشد: " + t.smiles); }
+      const nReal = mol.atoms.length;
+      if (!nReal) return err("SMILES بلوکِ «" + b.id + "» هیچ اتمی نداد: " + t.smiles);
+      if (t.attach.some(i => !(i >= 0 && i < nReal)))
+        return err("قالبِ بلوکِ «" + b.id + "»: attach به اتمی خارج از SMILES اشاره می‌کند.");
+      // اسلات‌ها را با اتمِ ساختگی پُر می‌کنیم تا شمارِ هیدروژن واقعی شود
+      t.attach.forEach(ai => {
+        const d = mol.atoms.length;
+        mol.atoms.push({ el: "H", arom: false, charge: 0, hExplicit: 0 });
+        mol.bonds.push({ a: ai, b: d, order: 1 });
+      });
+      St.computeHydrogens(mol);
+      const got = {};
+      for (let i = 0; i < nReal; i++) {
+        const a = mol.atoms[i];
+        got[a.el] = (got[a.el] || 0) + 1;
+        if (a.H) got.H = (got.H || 0) + a.H;
+      }
+      const keys = new Set(Object.keys(got).concat(Object.keys(b.atoms || {})));
+      const off = [...keys].filter(k => (got[k] || 0) !== ((b.atoms || {})[k] || 0))
+                           .map(k => k + ": قالب " + (got[k] || 0) + " ≠ اعلامِ بلوک " + ((b.atoms || {})[k] || 0));
+      if (off.length)
+        err("قالبِ بلوکِ «" + b.id + "» (" + t.smiles + ") با atoms خودش نمی‌خواند — " + off.join(" · "));
+    });
+    if (noTemplate.length)
+      warn(noTemplate.length + " بلوک قالبِ اتمی ندارند، پس ماژولِ تقارن برایشان سکوت می‌کند: " +
+           noTemplate.join("، ") + "  (اگر الگوی استخلافشان معلوم است، قالب اضافه کنید)");
+
+    /* blockCarbonEnvCount در برابر همان قالبِ اتمی.
+       این جدول دستی نوشته شده بود و دو مقدارش غلط بود (phenylene_m
+       چهار به‌جای شش، naphthyl هفت به‌جای ده). حالا از گراف سنجیده
+       می‌شود: هر اسلات با یک اتمِ کاوشگرِ متمایز پُر می‌شود تا شرطِ
+       «در زنجیرهٔ غیرمتقارن» که تعریفِ خودِ جدول است برقرار شود. */
+    const PROBE = ["F", "Cl", "Br", "I", "At", "Ts"];
+    Object.keys(DB.blockCarbonEnvCount || {}).forEach(id => {
+      const t = DB.blockStructures[id];
+      if (!t) return;
+      let mol;
+      try { mol = St.parseSMILES(t.smiles); } catch (e) { return; }
+      const nReal = mol.atoms.length;
+      t.attach.forEach((ai, k) => {
+        const d = mol.atoms.length;
+        mol.atoms.push({ el: PROBE[k] || "F", arom: false, charge: 0, hExplicit: 0 });
+        mol.bonds.push({ a: ai, b: d, order: 1 });
+      });
+      St.computeHydrogens(mol);
+      const cls = St.refineClasses(mol);
+      const cs = new Set();
+      for (let i = 0; i < nReal; i++) if (mol.atoms[i].el === "C") cs.add(cls[i]);
+      if (cs.size !== DB.blockCarbonEnvCount[id])
+        err("blockCarbonEnvCount[\"" + id + "\"] برابرِ " + DB.blockCarbonEnvCount[id] +
+            " است ولی گرافِ اتمیِ همان بلوک " + cs.size + " محیطِ کربن می‌دهد.");
+    });
+  }
+}
+
+/* ---------- IHD اعلام‌شده در برابر فرمول ----------
+   IHD از فرمول یکتا به‌دست می‌آید، پس هر اختلافی خطای داده است. این
+   بررسی نبود و ۱۴ رکورد با IHD غلط از آن رد شده بودند — از جمله سه
+   سؤالِ بانکِ تمرین، که بد است چون prCheck در js/practice.js پاسخِ
+   دانشجو را با همین عدد می‌سنجد و به IHDِ درست می‌گوید غلط.
+   (نمونه: ۱-نیترونفتالین ۷ نوشته بود، درست ۸ است.)
+
+   هر دو فهرست جدا سنجیده می‌شوند: dedupe بر پایهٔ نام، رکوردِ
+   reference را جلوی fieldProblems می‌گذارد، پس اگر فقط روی استخرِ
+   یکتاشده بسنجیم، غلط‌های بانکِ تمرین پشتِ نسخهٔ reference پنهان
+   می‌مانند — دقیقاً همان تلهٔ سایه‌افتادنِ searchPool. */
+["reference", "fieldProblems"].forEach(key => {
+  (DB[key] || []).forEach(r => {
+    if (r.ihd == null || !r.formula) return;
+    const a = parseFormula(r.formula);
+    const X = (a.F || 0) + (a.Cl || 0) + (a.Br || 0) + (a.I || 0);
+    const want = (a.C || 0) - ((a.H || 0) + X) / 2 + ((a.N || 0) / 2) + 1;
+    if (want !== Number(r.ihd))
+      err("[" + key + "] «" + (r.en || r.name) + "» (" + r.formula + "): IHD اعلام‌شده " +
+          r.ihd + " است ولی از فرمول " + want + " درمی‌آید.");
+  });
+});
+/* جدول‌های مرجعِ فرمول‌دار (مثل DB.h1.aromaticCores) هم IHD دارند */
+Object.keys(DB).forEach(k => {
+  const t = DB[k];
+  if (!t || typeof t !== "object") return;
+  const scan = arr => (Array.isArray(arr) ? arr : []).forEach(row => {
+    if (!row || row.ihd == null || !row.formula) return;
+    const a = parseFormula(row.formula);
+    const X = (a.F || 0) + (a.Cl || 0) + (a.Br || 0) + (a.I || 0);
+    const want = (a.C || 0) - ((a.H || 0) + X) / 2 + ((a.N || 0) / 2) + 1;
+    if (want !== Number(row.ihd))
+      err("جدولِ «" + k + "» — «" + (row.id || row.fa || "?") + "» (" + row.formula +
+          "): IHD اعلام‌شده " + row.ihd + " ≠ " + want + " از فرمول.");
+  });
+  if (Array.isArray(t)) scan(t);
+  else Object.keys(t).forEach(sub => { if (Array.isArray(t[sub])) scan(t[sub]); });
+});
+
 const html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
 const code = CODE_FILES.map(f => {
   try { return fs.readFileSync(path.join(ROOT, f), "utf8"); } catch (e) { return ""; }

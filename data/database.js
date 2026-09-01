@@ -84,6 +84,10 @@ const DB = {
     methyl:1, ethyl:2, isopropyl:2, tbutyl:2, npropyl:3,
     phenyl:4, benzyl:5, phenylene_p:4, tolyl_p:5,
     pyridin_3yl:5, furan_2yl:4, cf3:1, acetoxy:2,
+    // متا-فنیلن با دو استخلافِ متفاوت شش کربنِ متمایز دارد نه چهار،
+    // و نفتیلِ تک‌استخلافی ده تا نه هفت. هر دو با شمارشِ گرافِ اتمیِ
+    // همین بلوک‌ها سنجیده شده‌اند (بررسیِ خودکار در validate-database).
+    phenylene_m:6, naphthyl:10,
     ketone:1, aldehyde:1, cooh:1, ester_co:1, amide:1, acyl:2,
     hydroxyl:0, methoxy:1, ether_o:0, amine1:0,
     nitrile:1, nitro:0, chloro:0, bromo:0, ch2:1, ch:1, vinyl:2
@@ -97,6 +101,109 @@ const DB = {
     ketone:0, aldehyde:1, cooh:1, ester_co:0, amide:1, acyl:1,
     hydroxyl:1, methoxy:1, ether_o:0, amine1:1,
     nitrile:0, nitro:0, chloro:0, bromo:0, ch2:1, ch:1, vinyl:2
+  },
+
+  /* ------------------------------------------------------------------
+     ۲۲-الف-۲. ساختارِ اتمیِ هر بلوک — Block → Atom-level template
+     ------------------------------------------------------------------
+     چرا این جدول اضافه شد: دو جدولِ بالا «تعدادِ محیط» را بلوک‌به‌بلوک
+     می‌شمارند و جمع می‌زنند. این کار ذاتاً نمی‌تواند درست باشد، چون
+     تقارن خاصیتِ کلِ مولکول است، نه جمعِ خاصیتِ قطعه‌ها: دو متیلِ
+     پارا-زایلن با هم یک محیط‌اند ولی در اورتو-زایلن هم — و هیچ جمعِ
+     بلوکی این را نمی‌بیند. سنجشِ عددی هم همین را گفت: predictSymmetry
+     فقط ۳۶٪ دقیق بود و در ۶۳ ترکیب از ۱۶۴ کم‌تر از واقعیت می‌گفت.
+
+     پس هر بلوک ساختارِ اتمیِ خودش را اعلام می‌کند و موتور مولکول را
+     واقعاً سرِهم می‌کند، بعد تقارن را روی گرافِ اتمی می‌شمارد
+     (Structure.refineClasses — همان موتوری که با RDKit راستی‌آزمایی
+     شده و در tools/test-structure.js قفل است).
+
+       smiles   ساختارِ خودِ قطعه، به SMILES
+       attach   اندیسِ اتمی که هر «اسلات» از آن‌جا به بقیهٔ مولکول
+                وصل می‌شود — به ترتیبِ اسلات‌ها. اندیس‌ها به ترتیبِ
+                ظاهرشدنِ اتم‌ها در همان SMILES است.
+
+     نکته‌ها:
+       • طولِ attach باید دقیقاً برابرِ slots همان بلوک باشد؛
+         validate-database.js همین را می‌سنجد.
+       • ترتیبِ attach معنا دارد. در ester_co اسلاتِ اول کربنِ
+         کربونیل است و اسلاتِ دوم اکسیژنِ استری، پس زنجیرهٔ
+         [phenyl, ester_co, ethyl] «اتیل بنزوات» خوانده می‌شود نه
+         «فنیل پروپانوات» — همان قراردادی که chain با آن نوشته شده.
+       • benzene_tri و benzene_tetra عمداً قالب ندارند: الگوی
+         استخلافشان اعلام‌نشده است و حدس‌زدنش تقارن را عوض می‌کند.
+         نبودِ قالب یعنی موتور پیش‌بینی نمی‌کند — که بهتر از
+         پیش‌بینیِ غلط است. برای همین نسخه‌های موقعیت‌دار
+         (benzene_123/124/135/…) وجود دارند.
+     ------------------------------------------------------------------ */
+  blockStructures: {
+    // --- آلکیل ---
+    methyl:     { smiles: "C",            attach: [0] },
+    ethyl:      { smiles: "CC",           attach: [0] },
+    isopropyl:  { smiles: "C(C)C",        attach: [0] },
+    tbutyl:     { smiles: "C(C)(C)C",     attach: [0] },
+    npropyl:    { smiles: "CCC",          attach: [0] },
+    ch2:        { smiles: "C",            attach: [0, 0] },
+    ch:         { smiles: "C",            attach: [0, 0, 0] },
+    cq:         { smiles: "C",            attach: [0, 0, 0, 0] },
+    vinyl:      { smiles: "C=C",          attach: [0] },
+    alkyne_internal: { smiles: "C#C",     attach: [0, 1] },
+    cf3:        { smiles: "C(F)(F)F",     attach: [0] },
+
+    // --- آروماتیک ---
+    // حلقهٔ بنزن همیشه "c1ccccc1" است و فقط جای اتصال‌ها فرق می‌کند:
+    // ۰ و ۱ اورتو، ۰ و ۲ متا، ۰ و ۳ پارا.
+    phenyl:        { smiles: "c1ccccc1",  attach: [0] },
+    phenylene_p:   { smiles: "c1ccccc1",  attach: [0, 3] },
+    phenylene_m:   { smiles: "c1ccccc1",  attach: [0, 2] },
+    benzene_123:   { smiles: "c1ccccc1",  attach: [0, 1, 2] },
+    benzene_124:   { smiles: "c1ccccc1",  attach: [0, 1, 3] },
+    benzene_135:   { smiles: "c1ccccc1",  attach: [0, 2, 4] },
+    benzene_1234:  { smiles: "c1ccccc1",  attach: [0, 1, 2, 3] },
+    benzene_1235:  { smiles: "c1ccccc1",  attach: [0, 1, 2, 4] },
+    benzene_1245:  { smiles: "c1ccccc1",  attach: [0, 1, 3, 4] },
+    benzene_penta: { smiles: "c1ccccc1",  attach: [0, 1, 2, 3, 4] },
+    benzene_hexa:  { smiles: "c1ccccc1",  attach: [0, 1, 2, 3, 4, 5] },
+    benzyl:        { smiles: "Cc1ccccc1", attach: [0] },
+    tolyl_p:       { smiles: "Cc1ccccc1", attach: [4] },   // پارا نسبت به متیل
+    naphthyl:      { smiles: "c1ccc2ccccc2c1",   attach: [0] },
+    quinolinyl:    { smiles: "c1ccc2ncccc2c1",   attach: [0] },
+    pyridin_3yl:   { smiles: "c1ccncc1",  attach: [1] },   // متا نسبت به نیتروژن
+    furan_2yl:     { smiles: "c1ccoc1",   attach: [4] },   // مجاورِ اکسیژن
+
+    // --- کربونیل و مشتقات ---
+    ketone:       { smiles: "C=O",        attach: [0, 0] },
+    fluorenyl_co: { smiles: "C=O",        attach: [0, 0] },
+    aldehyde:     { smiles: "C=O",        attach: [0] },
+    cooh:         { smiles: "C(=O)O",     attach: [0] },
+    ester_co:     { smiles: "C(=O)O",     attach: [0, 2] },  // کربونیل، سپس اکسیژن
+    amide:        { smiles: "C(=O)N",     attach: [0] },
+    acyl:         { smiles: "C(=O)C",     attach: [0] },
+    acetoxy:      { smiles: "OC(=O)C",    attach: [0] },
+    formate:      { smiles: "OC=O",       attach: [0] },
+
+    // --- اکسیژن‌دار و نیتروژن‌دار ---
+    hydroxyl:        { smiles: "O",       attach: [0] },
+    methoxy:         { smiles: "OC",      attach: [0] },
+    ether_o:         { smiles: "O",       attach: [0, 0] },
+    methylenedioxy:  { smiles: "OCO",     attach: [0, 2] },
+    epoxide:         { smiles: "C1CO1",   attach: [0] },
+    amine1:          { smiles: "N",       attach: [0] },
+    amine3:          { smiles: "N",       attach: [0, 0, 0] },
+    amine3_dimethyl: { smiles: "N(C)C",   attach: [0] },
+    nitrile:         { smiles: "C#N",     attach: [0] },
+    nitro:           { smiles: "[N+](=O)[O-]", attach: [0] },
+
+    // --- گوگردی ---
+    thiol:       { smiles: "S",           attach: [0] },
+    thioether:   { smiles: "S",           attach: [0, 0] },
+    sulfoxide:   { smiles: "S=O",         attach: [0, 0] },
+    sulfonamide: { smiles: "S(=O)(=O)N",  attach: [0] },
+    sulfonate:   { smiles: "S(=O)(=O)O",  attach: [0, 3] },
+
+    // --- هالوژن ---
+    chloro: { smiles: "Cl", attach: [0] },
+    bromo:  { smiles: "Br", attach: [0] }
   },
 
   /* ------------------------------------------------------------------
@@ -413,7 +520,7 @@ const DB = {
     { name:"بنزیل برمید",       en:"Benzyl bromide",    formula:"C7H7Br",  ihd:4,
       signature:["ms_91","ms_br","h_ar_mono"],
       chain:["benzyl","bromo"], note:"پیک پایه ۹۱ (تروپیلیوم)؛ M ۱۷۰/۱۷۲؛ CH₂ ~۴.۴" },
-    { name:"فنیل‌استونیتریل",   en:"Phenylacetonitrile",formula:"C8H7N",   ihd:5,
+    { name:"فنیل‌استونیتریل",   en:"Phenylacetonitrile",formula:"C8H7N",   ihd:6,
       signature:["ir_triple_cn","ms_91","ms_77","h_ar_mono"],
       chain:["benzyl","nitrile"], note:"C≡N ~۲۲۵۱؛ پیک ۹۱/۷۷؛ CH₂ ~۳.۷" },
     { name:"بنزیل‌آمین",        en:"Benzylamine",       formula:"C7H9N",   ihd:4,
@@ -439,7 +546,7 @@ const DB = {
     { name:"بیاستیل (۲،۳-بوتان‌دی‌اون)", en:"Biacetyl", formula:"C4H6O2", ihd:2,
       signature:["ir_co_ketone","c_ketone","ms_43","h_methyl"],
       chain:["methyl","ketone","ketone","methyl"], note:"دی‌کتون مجاور؛ IR ~۱۷۱۶؛ UV ۲۸۹nm (n→π* دی‌کربونیل)؛ تک‌سینگلت CH₃ ~۲.۳" },
-    { name:"سوکسینونیتریل",     en:"Succinonitrile",    formula:"C4H4N2",  ihd:2,
+    { name:"سوکسینونیتریل",     en:"Succinonitrile",    formula:"C4H4N2",  ihd:4,
       signature:["ir_triple_cn"],
       chain:["nitrile","ch2","ch2","nitrile"], note:"دی‌نیتریل؛ C≡N ~۲۲۵۰؛ تک‌سینگلت CH₂ ~۲.۷؛ M فرد نیست (۲ نیتروژن، قاعده زوج)" },
     { name:"۱،۴-سیکلوهگزان‌دی‌اون", en:"1,4-Cyclohexanedione", formula:"C6H8O2", ihd:3,
@@ -499,7 +606,7 @@ const DB = {
     { name:"۲-فنوکسی‌اتانول", en:"2-Phenoxyethanol", formula:"C8H10O2", ihd:4,
       signature:["ir_oh_alc","h_d2o","h_ar_mono","ms_94"],
       chain:["phenyl","ether_o","hydroxyl"], note:"⚠ ساختار واقعی PhO-CH₂CH₂-OH (سه‌بلوکی تقریبی). تلهٔ فنوکسی/بنزیلی: پیک پایهٔ MS=۹۴ (فنول، از بازآرایی با خروج اتیلن) ثابت می‌کند پیوند Ph–O سالم مانده، نه Ph–CH₂–O (که ۹۱ می‌داد)." },
-    { name:"۴-بروموبوتیرونیتریل", en:"4-Bromobutanenitrile", formula:"C4H6NBr", ihd:1,
+    { name:"۴-بروموبوتیرونیتریل", en:"4-Bromobutanenitrile", formula:"C4H6NBr", ihd:2,
       signature:["ir_triple_cn","ms_br"],
       chain:["nitrile","ch2","ch2","bromo"], note:"⚠ تناقض بین منابع آموزشی: یک منبع پیک پایه ۶۸ (خروج Br) و دیگری ۴۱ (کاتیون آلیلی) گزارش کرده؛ با طیف واقعی راستی‌آزمایی شود. نکتهٔ ثابت: CH₂-Br (~3.5ppm) با وجود الکترون‌کشندگی ضعیف‌تر از نیتریل، دی‌شیلدتر از CH₂-CN (~2.5-2.6ppm) است — اثر آنیزوتروپی نیتریل بر انکسار القایی غالب می‌آید." },
     { name:"۱-برمو-۱-فنیل‌اتان", en:"1-Bromoethylbenzene", formula:"C8H9Br", ihd:4,
@@ -1486,7 +1593,7 @@ const DB = {
       ir: "کشش N–H در ~۳۴۰۰", h1: "سیگنال‌های حلقه بین ۶.۵ تا ۷.۶ ppm" },
     { id: "quinoline", fa: "کینولین", formula: "C9H7N", ihd: 7,
       h1: "طیف گسترده و پیچیده بین ۷.۳ تا ۸.۸ ppm" },
-    { id: "coumarin", fa: "کومارین", formula: "C9H6O2", ihd: 6,
+    { id: "coumarin", fa: "کومارین", formula: "C9H6O2", ihd: 7,
       h1: "H-4 در ~۸.۵ ppm (سینگلت/دابلت با J کوچک)، به‌شدت دی‌شیلد به‌خاطر مجاورت کربونیل و حلقهٔ آروماتیک" },
     { id: "pyridine_core", fa: "پیریدین", formula: "C5H5N", ihd: 4,
       ir: "خمش اسکلتی حلقه در ۷۵۳ و ۷۰۷ (شباهت زیاد به الگوی تک‌استخلافی بنزن)" }

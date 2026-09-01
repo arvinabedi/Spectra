@@ -262,26 +262,199 @@
     return 3;                                 // پیک/ناحیه دستگاهی معمول
   }
 
-  /* ---------- ماژول تقارن: پیش‌بینی تعداد پیک ¹³C از روی زنجیرهٔ بلوکی ----------
-     پیش‌بینی بر پایهٔ «تعداد محیط داخلی هر بلوک» است، نه گراف اتمی کامل.
-     برای بلوک‌های استاندارد (فنیل، اتیل، ترت-بوتیل...) با دادهٔ واقعی
-     امتحان شده و دقیق بوده (اتیل‌بنزن=۶، ۳-پنتانون=۳، دی‌اتیل مالونات=۴،
-     ۱،۲-دی‌برمواتان=۱)؛ برای بلوک‌های ترکیبی جدید (پیریدین/فوران) تخمینی است. */
-  function predictSymmetry(chain) {
-    const ids = chain.map(b => b.id);
-    const rev = [...ids].reverse();
-    const mirror = ids.join(">") === rev.join(">") && chain.length > 1;
-    const n = chain.length;
-    const CENV = DB.blockCarbonEnvCount || {};
-    let cCount = 0;
-    if (mirror) {
-      const half = Math.floor(n / 2);
-      for (let i = 0; i < half; i++) cCount += CENV[chain[i].id] || 0;
-      if (n % 2 === 1) cCount += CENV[chain[half].id] || 0;
-    } else {
-      chain.forEach(b => { cCount += CENV[b.id] || 0; });
+  /* ---------- ماژول تقارن: پیش‌بینی تعداد پیک ¹³C از گرافِ اتمی ----------
+     نسخهٔ پیشین محیط‌ها را بلوک‌به‌بلوک از DB.blockCarbonEnvCount جمع
+     می‌زد و اگر آرایهٔ chain آینه‌ای بود نصف می‌کرد. آن روش نمی‌توانست
+     درست باشد: تقارن خاصیتِ کلِ مولکول است نه جمعِ خاصیتِ قطعه‌ها، و
+     «آینه‌بودنِ آرایه» هم تقارنِ واقعی نیست — پارا-زایلن و اورتو-زایلن
+     آرایهٔ یکسانی دارند ولی هر دو چهار محیط دارند، در حالی‌که آرایهٔ
+     [methyl, phenylene_p, methyl] آینه‌ای است و [methyl, benzene_124,…]
+     نه. سنجش هم همین را نشان داد: ۳۶٪ دقیق، و در ۶۳ ترکیب از ۱۶۴
+     کم‌تر از واقعیت — که بدترین جهتِ خطاست، چون شاخهٔ «غیرممکن»
+     (score -= 10) دقیقاً وقتی می‌گیرد که پاسخِ درست است.
+
+     حالا مولکول واقعاً سرِهم می‌شود: هر بلوک ساختارِ اتمیِ خودش را از
+     DB.blockStructures می‌آورد، اتصال‌ها از topology(ref) خوانده
+     می‌شوند (همان گرافی که bonds/ring/inferTopology می‌سازند)، و
+     تقارن با Structure.refineClasses روی گرافِ اتمی شمرده می‌شود —
+     همان موتوری که با RDKit راستی‌آزمایی شده و tools/test-structure.js
+     قفلش کرده است.
+
+     دو گاردِ صداقت، چون «نگفتن» از «غلط گفتن» بهتر است:
+       ۱) هر بلوکی قالبِ اتمی نداشته باشد یا اتصال‌ها از ظرفیتِ اعلام‌شده
+          بگذرند یا گراف تکه‌تکه باشد → پیش‌بینی نمی‌کنیم.
+       ۲) اگر فرمولِ مولکولِ سرِهم‌شده با فرمولِ خودِ ترکیب نخواند، یعنی
+          زنجیره همهٔ مولکول را توصیف نمی‌کند (۵۱ ترکیبِ «زنجیرهٔ ناقص»)
+          → باز هم پیش‌بینی نمی‌کنیم.
+     در هر دو حالت predictedC13 برابرِ null است و امتیازدهی سکوت می‌کند. */
+  /* سقفِ تعدادِ چیدمان‌ها. بالاتر از این، ابهام آن‌قدر زیاد است که
+     نتیجه ارزشِ محاسبه ندارد (و در UI هم باید سریع بماند). */
+  const MAX_ASSEMBLIES = 1000;
+
+  /* همهٔ جایگشت‌های یک آرایهٔ کوچک؛ cb روی هر جایگشت صدا زده می‌شود. */
+  function permute(arr, cb, k) {
+    k = k || 0;
+    if (k === arr.length) { cb(arr); return; }
+    for (let i = k; i < arr.length; i++) {
+      [arr[k], arr[i]] = [arr[i], arr[k]];
+      permute(arr, cb, k + 1);
+      [arr[k], arr[i]] = [arr[i], arr[k]];
     }
-    return { mirror, predictedC13: cCount };
+  }
+
+  function blockAssemblies(chain, ref) {
+    const S = root.Structure;
+    const ST = DB.blockStructures;
+    if (!S || !S.parseSMILES || !ST) return null;
+    const n = chain.length;
+    if (!n) return null;
+
+    const tpl = [];
+    for (const b of chain) {
+      const t = ST[b.id];
+      if (!t || !t.smiles || !t.attach) return null;   // بلوکِ بدونِ قالب
+      tpl.push(t);
+    }
+
+    let adj;
+    if (ref) adj = topology(ref);
+    else {
+      adj = Array.from({ length: n }, () => []);
+      for (let i = 0; i < n - 1; i++) { adj[i].push(i + 1); adj[i + 1].push(i); }
+    }
+    if (!adj || adj.length !== n) return null;
+
+    // گرافِ بلوکی باید یک‌تکه باشد، وگرنه یک مولکول را توصیف نمی‌کند
+    const seen = new Set([0]), stack = [0];
+    while (stack.length) {
+      const k = stack.pop();
+      for (const j of adj[k]) if (!seen.has(j)) { seen.add(j); stack.push(j); }
+    }
+    if (seen.size !== n) return null;
+
+    /* کدام همسایه به کدام اسلات؟ آرایهٔ chain این را نمی‌گوید، و
+       حدس‌زدنش خطای واقعی می‌سازد:
+         • دی‌اتیل مالونات [ethyl, ester_co, ch2, ester_co, ethyl] —
+           اگر «همسایهٔ کم‌اندیس‌تر به اسلاتِ اول» بگیریم، استرِ چپ
+           برعکسِ استرِ راست سرِهم می‌شود و مولکولِ متقارن نامتقارن
+           درمی‌آید: ۷ محیط به‌جای ۴.
+         • ۲،۶-دی‌برومو‌آنیلین [benzene_123, amine1, bromo, bromo] —
+           آمین باید وسطِ الگوی ۱،۲،۳ بنشیند نه کنارش؛ ترتیبِ ثابت
+           ۶ محیط می‌دهد به‌جای ۴.
+
+       پس به‌جای حدس، همهٔ چیدمان‌های ممکن ساخته می‌شود. اگر همه به یک
+       عدد برسند، آن عدد قطعی است؛ اگر نه، عددِ قطعی نداریم — ولی
+       بیشینه‌شان همچنان معتبر است، چون هیچ چیدمانی نمی‌تواند بیش از آن
+       محیط بدهد. امتیازدهی از همین برای آزمونِ «غیرممکن» استفاده می‌کند.
+
+       چیدمان‌هایی که به نگاشتِ اتمیِ یکسان می‌رسند یکی شمرده می‌شوند،
+       پس ch2 با attach:[0,0] فقط یک حالت دارد نه دو. */
+    const choices = [];
+    let combos = 1;
+    for (let i = 0; i < n; i++) {
+      const list = adj[i].slice().sort((a, b) => a - b);
+      const att = tpl[i].attach;
+      if (list.length !== att.length) return null;     // ظرفیتِ اعلام‌شده نمی‌خواند
+      const opts = [], seenKey = new Set();
+      permute(att.slice(), arr => {
+        const key = arr.join(",");
+        if (seenKey.has(key)) return;
+        seenKey.add(key);
+        const m = new Map();
+        list.forEach((j, k) => m.set(j, arr[k]));
+        opts.push(m);
+      });
+      choices.push(opts);
+      combos *= opts.length;
+      if (combos > MAX_ASSEMBLIES) return null;        // بیش از حدِ مبهم
+    }
+
+    /* اسکلتِ ثابت: اتم‌ها و پیوندهای درونِ خودِ بلوک‌ها، یک‌بار پارس
+       می‌شود و برای هر چیدمان فقط کپیِ سبک گرفته می‌شود. */
+    const base = [], innerBonds = [], off = [];
+    for (let i = 0; i < n; i++) {
+      const m = S.parseSMILES(tpl[i].smiles);
+      off[i] = base.length;
+      m.atoms.forEach(a => base.push(a));
+      m.bonds.forEach(b => innerBonds.push({ a: b.a + off[i], b: b.b + off[i], order: b.order }));
+    }
+
+    const mols = [];
+    const pick = new Array(n);
+    (function walk(i) {
+      if (mols.length > MAX_ASSEMBLIES) return;
+      if (i === n) {
+        const atoms = base.map(a => ({ el: a.el, arom: a.arom, charge: a.charge, hExplicit: a.hExplicit }));
+        const bonds = innerBonds.slice();
+        for (let x = 0; x < n; x++) {
+          for (const y of adj[x]) {
+            if (y <= x) continue;
+            bonds.push({ a: off[x] + pick[x].get(y), b: off[y] + pick[y].get(x), order: 1 });
+          }
+        }
+        mols.push(S.computeHydrogens({ atoms, bonds }));
+        return;
+      }
+      for (const opt of choices[i]) { pick[i] = opt; walk(i + 1); }
+    })(0);
+
+    return mols.length ? mols : null;
+  }
+
+  function predictSymmetry(chain, ref) {
+    const out = {
+      mirror: false, predictedC13: null, predictedH1: null,
+      maxC13: null, minC13: null, assemblies: 0, basis: "declined"
+    };
+    const S = root.Structure;
+    const mols = blockAssemblies(chain, ref);
+    if (!mols) { out.reason = "بدونِ قالبِ اتمی یا توپولوژیِ نامعتبر"; return out; }
+
+    // فرمولِ همهٔ چیدمان‌ها یکی است، پس یک‌بار بررسی می‌شود
+    const first = mols[0];
+    const fa = first.atoms.reduce((m, a) => { m[a.el] = (m[a.el] || 0) + 1; return m; }, {});
+    fa.H = (fa.H || 0) + first.atoms.reduce((s, a) => s + (a.H || 0), 0);
+    if (ref && ref.formula && !atomsEqual(fa, parseFormula(ref.formula))) {
+      out.reason = "زنجیره کلِ مولکول را توصیف نمی‌کند";
+      out.assembled = formulaString(fa);
+      return out;
+    }
+
+    const cCounts = [], hCounts = [];
+    let nC = 0;
+    mols.forEach(mol => {
+      const cls = S.refineClasses(mol);
+      const cSet = new Set(), hSet = new Set();
+      nC = 0;
+      mol.atoms.forEach((a, k) => {
+        if (a.el === "C") { nC++; cSet.add(cls[k]); }
+        if (a.H > 0) hSet.add(cls[k]);
+      });
+      cCounts.push(cSet.size);
+      hCounts.push(hSet.size);
+    });
+
+    out.basis = "graph";
+    out.assemblies = mols.length;
+    out.formula = formulaString(fa);
+    out.maxC13 = Math.max.apply(null, cCounts);
+    out.minC13 = Math.min.apply(null, cCounts);
+    /* عددِ قطعی فقط وقتی اعلام می‌شود که همهٔ چیدمان‌ها به آن برسند.
+       اگر نه، minC13/maxC13 همچنان معتبرند و آزمونِ «غیرممکن» از
+       maxC13 استفاده می‌کند — هیچ چیدمانی بیش از آن محیط نمی‌دهد. */
+    if (out.maxC13 === out.minC13) {
+      out.predictedC13 = out.maxC13;
+      out.mirror = out.maxC13 < nC;
+    } else {
+      out.reason = "چیدمانِ استخلاف‌ها روی این زنجیره یکتا نیست";
+    }
+    /* محیط‌های ¹H واقعی. عمداً در امتیازدهی به کار نمی‌رود: آن‌چه دانشجو
+       در طیف «می‌شمارد» سیگنالِ قابل‌تفکیک است نه محیطِ شیمیایی — حلقهٔ
+       تک‌استخلافی معمولاً یک مولتی‌پلتِ ۵H دیده می‌شود نه سه سیگنال.
+       همان تمایزی که DB.blockProtonEnvCount مدل می‌کند. */
+    const hMax = Math.max.apply(null, hCounts), hMin = Math.min.apply(null, hCounts);
+    if (hMax === hMin) out.predictedH1 = hMax;
+    return out;
   }
 
   /* ---------- قیدهای اتصالِ برآمده از قطعات جرمی ----------
@@ -366,12 +539,18 @@
     const conn = connectivityScore(chain, ev);
     score += conn.delta;
 
-    // --- امتیازدهی تقارن با ماژول جدید: مقایسهٔ پیش‌بینی با شمارش واقعی کاربر ---
-    const sym = predictSymmetry(chain);
+    // --- امتیازدهی تقارن: مقایسهٔ پیش‌بینیِ گرافی با شمارش واقعی کاربر ---
+    /* وقتی predictedC13 برابرِ null است یعنی ماژول تقارن خودش اعلام کرده
+       که این زنجیره را نمی‌تواند به مولکولِ کامل ترجمه کند. در آن حالت
+       سکوت می‌کنیم؛ پیش از این با عددِ ناقصِ صفر مقایسه می‌شد و شاخهٔ
+       «غیرممکن» به هر کاندیدی که کاربر عددِ ¹³C داده بود جریمه می‌زد. */
+    const sym = predictSymmetry(chain, ref);
     if (obs && obs.c13Count) {
-      if (obs.c13Count === sym.predictedC13) score += 8;      // تطابق دقیق پیش‌بینی
-      else if (obs.c13Count > sym.predictedC13) score -= 10;  // غیرممکن (بیش از پیش‌بینی)
-      else score -= 3;                                        // کمتر از انتظار؛ شاید تقارن بیشتری هست
+      if (sym.predictedC13 != null && obs.c13Count === sym.predictedC13) score += 8;
+      // «غیرممکن» با بیشینهٔ چیدمان‌ها سنجیده می‌شود، پس حتی وقتی عددِ
+      // قطعی نداریم هم این آزمون معتبر می‌ماند.
+      else if (sym.maxC13 != null && obs.c13Count > sym.maxC13) score -= 10;
+      else if (sym.predictedC13 != null && obs.c13Count < sym.predictedC13) score -= 3;
     }
 
     // پوشش شواهد (چند درصد شواهد بلوکی توضیح داده شد)
@@ -768,7 +947,7 @@
     deriveFromMass, massToFormulas, deriveFromAtoms, parseFormula, formulaString,
     impliedEvidence, topology, neighboursOf, inferTopology,   // بیرون‌داده برای ابزارهای ممیزی (tools/) atomsMass,
     collectEvidence, detectCore, assemble, matchReferences, connectivityScore,
-    detectContradictions, detectExamTraps, predictSymmetry, analyze
+    detectContradictions, detectExamTraps, predictSymmetry, blockAssemblies, analyze
   };
 
   if (typeof module !== "undefined" && module.exports) module.exports = API;

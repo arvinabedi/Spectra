@@ -568,30 +568,33 @@
      ================================================================= */
 
   /* ---------- پیش‌بینی تعداد محیط ¹³C از روی یک زنجیرهٔ بلوکی دلخواه ----------
-     نسخهٔ عمومیِ همان منطق predictSymmetry در inference.js؛ اینجا برای
-     استفادهٔ مستقیم UI (بدون نیاز به موتور مونتاژ کامل) در دسترس است. */
+     این تابع کپیِ خودش را از منطقِ predictSymmetry داشت — همان جمعِ
+     بلوک‌به‌بلوک به‌علاوهٔ «اگر آرایه آینه‌ای بود نصفش کن». آن منطق در
+     inference.js با ساختنِ گرافِ اتمی جایگزین شد (۳۶٪ → ۸۴٪ دقت)، و
+     این کپی جا ماند؛ یعنی دو پاسخِ متفاوت برای یک پرسش. همان تلهٔ
+     «کپیِ منطق که بی‌صدا از موتور جدا می‌افتد» که سرِ ابزارهای tools/
+     هم یک‌بار اتفاق افتاد (توضیح در سرِ tools/test-inference.js).
+
+     حالا از خودِ موتور می‌پرسد. اگر موتور نتواند قطعی جواب دهد،
+     predictedC13 برابرِ null است و کرانِ maxC13 در کنارش می‌آید — به
+     همان معنایی که در inference.js توضیح داده شده. */
   function predictNMRSymmetry(chain) {
-    const ids = chain.map(b => b.id);
-    const rev = [...ids].reverse();
-    const mirror = ids.join(">") === rev.join(">") && chain.length > 1;
-    const n = chain.length;
-    let cCount = 0, hCount = 0;
-    const CENV = DB.blockCarbonEnvCount || {}, HENV = DB.blockProtonEnvCount || {};
-    if (mirror) {
-      const half = Math.floor(n / 2);
-      for (let i = 0; i < half; i++) { cCount += CENV[chain[i].id] || 0; hCount += HENV[chain[i].id] || 0; }
-      if (n % 2 === 1) {
-        const mid = chain[half];
-        cCount += CENV[mid.id] || 0;
-        hCount += (mid.id === "phenylene_p") ? 1 : (HENV[mid.id] || 0);
-      }
-    } else {
-      chain.forEach(b => {
-        cCount += CENV[b.id] || 0;
-        hCount += (b.id === "phenylene_p") ? 2 : (HENV[b.id] || 0);
-      });
+    const Inf = root.Inference;
+    if (Inf && Inf.predictSymmetry) {
+      const s = Inf.predictSymmetry(chain);
+      return {
+        mirror: s.mirror,
+        predictedC13: s.predictedC13,
+        predictedH1: s.predictedH1,
+        minC13: s.minC13,
+        maxC13: s.maxC13,
+        basis: s.basis,
+        reason: s.reason
+      };
     }
-    return { mirror, predictedC13: cCount, predictedH1: hCount };
+    return { mirror: false, predictedC13: null, predictedH1: null,
+             minC13: null, maxC13: null, basis: "declined",
+             reason: "موتور استنتاج بارگذاری نشده" };
   }
 
   /* ---------- تحلیل‌گر مستقل: از روی «تعداد کل کربن» + «تعداد پیک واقعی طیف» ----------
