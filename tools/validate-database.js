@@ -17,6 +17,11 @@
      ۵) زنجیرهٔ بلوک که به بلوکِ ناموجود اشاره می‌کند، یا فرمولی که با
         مجموعِ اتم‌های زنجیره نمی‌خواند
      ۶) جدولی در پایگاه که هیچ مصرف‌کننده‌ای در js/ یا index.html ندارد
+     ۷) متنِ طیفی که با فرمولِ خودِ رکورد نمی‌خواند: یونِ مولکولی، قاعدهٔ
+        نیتروژن، جرمِ قطعه‌های MS، حسابِ خروجِ خنثی، مجموعِ انتگرالِ ¹H،
+        شمارِ محیط‌های ¹³C و عددِ بیرون از بازهٔ فیزیکی
+        (نمونه: رکوردِ «دی‌استیل» که طیفِ ۲،۳-پنتان‌دی‌اون را حمل می‌کرد)
+     ۸) ترکیبِ تکراری با دو نامِ مترادف، که دِدآپِ نام‌محور نمی‌گیردش
 
    اجرا:  node tools/validate-database.js
    کدِ خروج ۱ اگر خطای دستهٔ «خطا» پیدا شود (برای استفاده در اسکریپتِ ساخت).
@@ -45,13 +50,36 @@ function warn(msg) { warnings.push(msg); }
 const sandbox = { console: { info() {}, warn() {}, log() {}, error() {} } };
 sandbox.window = sandbox; sandbox.self = sandbox;
 const ctx = vm.createContext(sandbox);
+/* dedupeFieldProblems وسطِ بارگذاری هم صدا زده می‌شود (انتهای
+   field-osfs-table.js)، پس تا اینجا بعضی تکراری‌ها رفته‌اند. برای بررسیِ ۹
+   باید فهرست را *پیش از هر جمع‌کردن* دید. تابع را عوض نمی‌کنیم، دورش
+   می‌پیچیم: دِدآپِ واقعی سرِ جای خودش اجرا می‌شود تا ترتیبِ بارگذاری
+   دقیقاً همانِ مرورگر بماند، و ما فقط قبلش یک تصویر برمی‌داریم. */
+const preDedupeSnapshots = [];
+let dedupeWrapped = false;
 for (const f of DATA_FILES) {
   try { vm.runInContext(fs.readFileSync(path.join(ROOT, f), "utf8"), ctx, { filename: f }); }
   catch (e) { err("بارگذاری «" + f + "» شکست خورد: " + e.message); }
+  if (!dedupeWrapped && sandbox.DB && typeof sandbox.DB.dedupeFieldProblems === "function") {
+    const real = sandbox.DB.dedupeFieldProblems;
+    const wrapper = function () {
+      preDedupeSnapshots.push((sandbox.DB.fieldProblems || []).slice());
+      return real.apply(this, arguments);
+    };
+    Object.assign(wrapper, real);        // canon و هر چیزِ دیگری که روی تابع نشسته
+    sandbox.DB.dedupeFieldProblems = wrapper;
+    dedupeWrapped = true;
+  }
 }
 const DB = sandbox.DB;
 if (!DB) { console.error("DB ساخته نشد — ممیزی متوقف شد."); process.exit(1); }
 if (DB.dedupeFieldProblems) DB.dedupeFieldProblems();
+/* همهٔ رکوردهایی که در هر مرحله وجود داشته‌اند، حتی اگر بعداً حذف شده‌اند */
+const preDedupe = [];
+{
+  const byRef = new Set();
+  preDedupeSnapshots.forEach(list => list.forEach(p => { if (!byRef.has(p)) { byRef.add(p); preDedupe.push(p); } }));
+}
 
 /* موتور استنتاج هم بارگذاری می‌شود تا بررسی‌های وابسته به «شواهد ضمنی»
    از همان impliedEvidence واقعی استفاده کنند، نه از کپیِ منطق. */
@@ -181,6 +209,223 @@ Object.keys(DB).forEach(k => {
   if (Array.isArray(t)) scan(t);
   else Object.keys(t).forEach(sub => { if (Array.isArray(t[sub])) scan(t[sub]); });
 });
+
+/* ---------- ۷) متنِ طیفی در برابرِ فرمولِ خودِ رکورد ----------
+   رکوردها متنِ آزادِ فارسی دارند، ولی بخشِ عددیِ همان متن با فرمول
+   قابلِ راستی‌آزمایی است. ممیزیِ ۱۴۰۴/۰۶/۱۱ با همین بررسی‌ها هشت
+   رکوردِ غلط پیدا کرد که هیچ آزمونِ دیگری نمی‌گرفت — از جمله رکوردی
+   که کلاً طیفِ ترکیبِ دیگری را حمل می‌کرد («دی‌استیل» با دادهٔ
+   ۲،۳-پنتان‌دی‌اون) و دو ترکیب که دو بار ثبت شده بودند.
+
+   نکتهٔ روشِ کار: در همان ممیزی از هجده نشانه، هفت‌تا ایرادِ خودِ
+   ابزار بود نه ایرادِ داده — جفتِ ایزوتوپیِ ۱۰۷/۱۰۹ که دو عدد خوانده
+   شد، ثابتِ کوپلاژِ ۲۷۰Hz که شیفت شمرده شد، پیشوندِ «۹ سیگنال» که
+   خودش شیفت شمرده شد، و بازهٔ ۲.۴-۲.۲ که عددِ منفی خوانده شد. پس هر
+   بررسیِ این‌جا عمداً محافظه‌کار است: هرچه مبهم بخوانَد رد می‌کند، نه
+   گزارش. اگر روزی نشانهٔ نادرست دیدید، اول همین نرمال‌سازی‌ها را شک کنید. */
+
+/* ارقامِ فارسی/عربی/زیرنویس ← اسکی؛ منهای ریاضی و خط‌تیرهٔ بلند ← «-» */
+function norm(s) {
+  return String(s == null ? "" : s)
+    .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0))
+    .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[₀-₉]/g, d => String(d.charCodeAt(0) - 0x2080))
+    .replace(/٫/g, ".")
+    .replace(/[−–—]/g, "-");
+}
+/* ثابتِ کوپلاژ عدد است ولی شیفت نیست */
+function stripJ(s) {
+  return s.replace(/[0-9.]+\s*Hz/g, " ")
+          .replace(/J[^\s،,]*\s*[=≈~]*\s*[0-9.]+/g, " ");
+}
+/* «۱۳۲-۱۲۳» و «۰ تا -۱» یک ورودی‌اند، نه دو عدد */
+function collapseRanges(s) {
+  return s.replace(/(-?\d+(?:\.\d+)?)\s*تا\s*(-?\d+(?:\.\d+)?)/g, "$1")
+          .replace(/(-?\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)/g, "$1");
+}
+const NOMINAL = { C: 12, H: 1, N: 14, O: 16, F: 19, Cl: 35, Br: 79, I: 127, S: 32, P: 31 };
+function nominalMass(atoms) {
+  let m = 0;
+  for (const el in atoms) { if (!(el in NOMINAL)) return null; m += NOMINAL[el] * atoms[el]; }
+  return m;
+}
+/* فرمولِ قطعه فقط وقتی پذیرفته می‌شود که سرتاسر فرمول باشد */
+function fragmentAtoms(txt) {
+  const t = norm(txt).replace(/[⁺+•·]/g, "").trim();
+  if (!/^(?:[A-Z][a-z]?\d*)+$/.test(t)) return null;
+  const a = parseFormula(t);
+  for (const el in a) if (!(el in NOMINAL)) return null;
+  return a;
+}
+
+["reference", "fieldProblems"].forEach(key => {
+  (DB[key] || []).forEach(r => {
+    if (!r.formula) return;
+    const at = parseFormula(r.formula);
+    const M = nominalMass(at);
+    if (M == null) return;                       // عنصرِ بیرون از جدولِ جرم
+    const who = "[" + key + "] «" + (r.en || r.name) + "» (" + r.formula + ")";
+    const ms = stripJ(norm(r.ms));
+
+    /* الف) یونِ مولکولی. خوشهٔ ایزوتوپیِ «M=186/188/190» یک ادعا است نه
+       سه‌تا: سبک‌ترین عضو با جرمِ نامیِ فرمول سنجیده می‌شود. */
+    const mIon = ms.match(/M\s*=\s*(\d+)/) || ms.match(/(\d+)\s*\(\s*M\s*\)/);
+    if (mIon) {
+      const claimed = Number(mIon[1]);
+      if (claimed !== M) {
+        err(who + ": متنِ MS یونِ مولکولی را " + claimed + " می‌گوید، از فرمول " + M + " درمی‌آید.");
+      } else if ((claimed % 2 === 1) !== ((at.N || 0) % 2 === 1)) {
+        /* ب) قاعدهٔ نیتروژن — فقط وقتی M با فرمول خوانده باشد */
+        err(who + ": M=" + claimed + " " + (claimed % 2 ? "فرد" : "زوج") +
+            " است ولی مولکول " + (at.N || 0) + " نیتروژن دارد — قاعدهٔ نیتروژن نقض می‌شود.");
+      }
+    }
+
+    /* ج) قطعه‌های فرمول‌دار: جرمشان باید یکی از m/zهای همان ادعا باشد
+       (جفتِ ایزوتوپی مجاز است) و از والد بزرگ‌تر نباشند. */
+    const FRAG = /((?:\d{2,3})(?:\s*\/\s*\d{2,3})*)\s*\(\s*([A-Za-z0-9]{1,14})\s*[⁺+]?\s*\)/g;
+    let f;
+    while ((f = FRAG.exec(ms)) !== null) {
+      const fa = fragmentAtoms(f[2]);
+      if (!fa) continue;
+      const fm = nominalMass(fa);
+      const listed = f[1].split("/").map(x => Number(x.trim()));
+      if (fm != null && listed.indexOf(fm) === -1)
+        err(who + ": قطعهٔ «" + f[2] + "» در m/z " + f[1] + " آمده ولی جرمش " + fm + " است.");
+      for (const el in fa) {
+        if (fa[el] > (at[el] || 0)) {
+          err(who + ": قطعهٔ «" + f[2] + "» " + fa[el] + " اتمِ " + el +
+              " دارد ولی خودِ مولکول " + (at[el] || 0) + " تا — قطعه از والد بزرگ‌تر نمی‌شود.");
+          break;
+        }
+      }
+    }
+
+    /* د) حسابِ خروجِ خنثی: «121 (M−CH₃COO)» */
+    const LOSS = /((?:\d{2,3})(?:\s*\/\s*\d{2,3})*)\s*\(\s*M\s*-\s*([A-Za-z0-9]{1,12})/g;
+    let l;
+    while ((l = LOSS.exec(ms)) !== null) {
+      const la = fragmentAtoms(l[2]);
+      if (!la) continue;
+      const lm = nominalMass(la);
+      const listed = l[1].split("/").map(x => Number(x.trim()));
+      if (lm != null && listed.indexOf(M - lm) === -1)
+        err(who + ": M−" + l[2] + " باید " + (M - lm) + " باشد ولی متن " + l[1] + " می‌گوید.");
+    }
+
+    /* هـ) مجموعِ انتگرال‌های ¹H = تعدادِ هیدروژنِ فرمول.
+       فقط وقتی سنجیده می‌شود که *همهٔ* قله‌ها انتگرال داشته باشند؛ یک
+       قلهٔ بی‌انتگرال یعنی فهرست ناقص است و مجموع بی‌معنا.
+
+       استثنای D₂O: در حلالِ دوتره پروتون‌های تبادلی (OH/NH/COOH) محو
+       می‌شوند، پس مجموع *باید* کمتر از فرمول باشد. گلیسیل‌گلیسین با
+       ۴H در D₂O در برابرِ ۸H فرمول درست است، نه غلط. آن‌جا فقط
+       بیشتربودن ایراد است. */
+    if (r.h1) {
+      const h1n = norm(r.h1);
+      const inD2O = /D\s*2\s*O/i.test(h1n);
+      const groups = h1n.match(/\([^()]*\)/g) || [];
+      let sum = 0, missing = 0;
+      groups.forEach(g => {
+        const hit = g.match(/(\d+)\s*H\b/);
+        if (hit) sum += Number(hit[1]); else missing++;
+      });
+      const H = at.H || 0;
+      if (groups.length && !missing && (inD2O ? sum > H : sum !== H))
+        err(who + ": انتگرال‌های ¹H روی هم " + sum + "H می‌شوند ولی فرمول " + H +
+            "H دارد — " + (inD2O ? "در D₂O مجموع نمی‌تواند از فرمول بیشتر باشد."
+                                 : "یا قله‌ای جا افتاده یا انتگرالی غلط است."));
+    }
+
+    /* و) شمارِ محیط‌های ¹³C از تعدادِ کربن بیشتر نمی‌شود.
+       پیشوندِ «۹ سیگنال ¹³C:» خودش شیفت نیست و باید حذف شود. */
+    if (r.c13 && at.C) {
+      let body = norm(r.c13).replace(/^[^:：]*\d+\s*(?:سیگنال|پیک)[^:：]*[:：]/, " ");
+      body = body.replace(/\([^()]*\)/g, " ").replace(/—[\s\S]*$/, " ");
+      body = collapseRanges(stripJ(body));
+      const vals = (body.match(/-?\d+(?:\.\d+)?/g) || [])
+        .map(Number).filter(v => v >= -15 && v <= 235);
+      const distinct = new Set(vals.map(v => v.toFixed(1)));
+      if (distinct.size > at.C)
+        err(who + ": متنِ ¹³C " + distinct.size + " شیفتِ متمایز دارد ولی مولکول " +
+            at.C + " کربن — بیش از تعدادِ کربن، محیط ممکن نیست.");
+    }
+
+    /* ز) عددِ بیرون از بازهٔ فیزیکی (اشتباهِ تایپی یا واحدِ جابه‌جا) */
+    [["h1", -1, 14, "شیفتِ ¹H"], ["c13", -15, 235, "شیفتِ ¹³C"], ["ir", 400, 4000, "عددِ موجیِ IR"]]
+      .forEach(spec => {
+        const fld = spec[0], lo = spec[1], hi = spec[2], label = spec[3];
+        if (!r[fld]) return;
+        let body = norm(r[fld]).replace(/\([^()]*\)/g, " ");
+        body = collapseRanges(stripJ(body)).replace(/\d+(?:\.\d+)?\s*nm/g, " ");
+        (body.match(/-?\d+(?:\.\d+)?/g) || []).map(Number).forEach(v => {
+          if (fld === "ir" && v < 100) return;            // «دو نوار» — شمارش است نه باند
+          if (fld !== "ir" && Math.abs(v) > 400) return;  // m/z که در همان متن ذکر شده
+          if (v < lo || v > hi)
+            err(who + ": " + label + " برابرِ " + v + " بیرون از بازهٔ ممکن (" +
+                lo + " تا " + hi + ") است.");
+        });
+      });
+  });
+});
+
+/* ---------- ۸) دو رکورد که از روی دادهٔ خودشان قابلِ تفکیک نیستند ----------
+   دِدآپِ نام‌محور «Butan-2-one» و «2-Butanone (MEK)» را یک ترکیب نمی‌بیند،
+   ولی طیفشان یکی است؛ فرمول + الگوی ¹H کلیدِ بهتری است. این دو، و همین‌طور
+   GABA که زیرِ دو نام دو بار آمده بود، با همین بررسی پیدا شدند.
+
+   دو نکته که این بررسی را از هشدارِ الکی نجات می‌دهد:
+   ۱) هر فهرست جدا سنجیده می‌شود. بودنِ یک ترکیب هم در reference و هم در
+      fieldProblems عمدی است (بانکِ تمرین و بانکِ مرجع مستقل‌اند)، پس
+      مقایسهٔ میانِ دو فهرست هجده هشدارِ بی‌مورد می‌داد.
+   ۲) نتیجه همیشه تکراری نیست: نِرول و ژرانیول ایزومرِ E/Z واقعی‌اند، ولی
+      چون ¹Hشان عیناً یکسان ثبت شده، دانشجو از روی دادهٔ داده‌شده نمی‌تواند
+      تفکیکشان کند — که خودش ایرادِ سؤال است. پس متنِ هشدار هر دو حالت را
+      می‌گوید. */
+["reference", "fieldProblems"].forEach(key => {
+  const byPattern = new Map();
+  (DB[key] || []).forEach(r => {
+    if (!r.h1 || !r.formula) return;
+    const k = r.formula + "|" + norm(r.h1).replace(/\s+/g, "").slice(0, 40);
+    if (byPattern.has(k))
+      warn("[" + key + "] «" + byPattern.get(k) + "» و «" + (r.en || r.name) + "» فرمول و " +
+           "الگوی ¹H یکسان دارند — یا یک ترکیب با دو نام‌اند، یا دو ایزومر که از روی " +
+           "دادهٔ ثبت‌شده قابلِ تفکیک نیستند.");
+    else byPattern.set(k, r.en || r.name);
+  });
+});
+
+/* ---------- ۹) دو رکوردِ یک ترکیب که با هم اختلاف دارند ----------
+   dedupeFieldProblems رکوردی را که متنِ کوتاه‌تری دارد دور می‌ریزد. تا وقتی
+   دو رکورد یک چیز بگویند بی‌ضرر است، ولی «بوتان-۲-اون» و «2-Butanone (MEK)»
+   برای ¹³C دو عدد متفاوت می‌دادند (۳۷/۸ در برابرِ ۳۶/۷.۹) و GABA هم همین‌طور.
+   یعنی یکی از دو رکورد غلط بود و انتخاب بر پایهٔ *طولِ متن* انجام می‌شد، نه
+   درستی. این‌جا روی تصویرِ پیش از دِدآپ سنجیده می‌شود، وگرنه اصلاً دیده
+   نمی‌شود؛ آن دو مورد با همین بررسی پیدا و یکی شدند. */
+{
+  /* همان کلیدی که خودِ dedupe با آن گروه می‌بندد — کپی نمی‌شود تا از هم نیفتند */
+  const canon = (DB.dedupeFieldProblems && DB.dedupeFieldProblems.canon) ||
+                (x => String(x || "").toLowerCase().replace(/\(.*?\)/g, " ").replace(/[^a-z0-9]/g, ""));
+  const groups = new Map();
+  preDedupe.forEach(p => {
+    if (!p.formula || !p.en) return;
+    const k = p.formula + "|" + canon(p.en);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(p);
+  });
+  groups.forEach(list => {
+    if (list.length < 2) return;
+    const differ = ["ir", "ms", "c13", "h1"].filter(fld => {
+      const vals = new Set(list.filter(p => p[fld]).map(p => norm(p[fld]).replace(/\s+/g, "")));
+      return vals.size > 1;
+    });
+    if (!differ.length) return;                 // دو کپیِ یکسان — بی‌ضرر
+    const names = [...new Set(list.map(p => p.en))].join("» و «");
+    warn("«" + names + "» یک ترکیب‌اند و دو بار ثبت شده‌اند، ولی " + differ.join("، ") +
+         "شان یکی نیست — پس یکی از دو نسخه غلط است. dedupe رکوردی را نگه می‌دارد که متنِ " +
+         "بلندتری دارد، نه رکوردِ درست را؛ خودتان یکی را انتخاب و آن‌یکی را حذف کنید.");
+  });
+}
 
 const html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
 const code = CODE_FILES.map(f => {
