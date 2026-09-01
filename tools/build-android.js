@@ -6,24 +6,28 @@
        node tools/build-android.js            (نسخهٔ debug — نصب‌شدنی)
        node tools/build-android.js --release   (نسخهٔ release — امضا لازم دارد)
 
-   چرا این واسطه لازم است؟
-   افزونهٔ رسمیِ اندروید (AGP) اگر مسیرِ پروژه نویسهٔ غیرِ ASCII داشته باشد
-   ساخت را رد می‌کند:
+   آینه فقط وقتی لازم است که مسیرِ پروژه غیرِ ASCII باشد.
+   افزونهٔ رسمیِ اندروید (AGP) در آن حالت ساخت را رد می‌کند:
 
        Your project path contains non-ASCII characters.
        This will most likely cause the build to fail on Windows.
 
-   و این پروژه در «برنامه جدید» زندگی می‌کند. تغییرِ نامِ پوشه راه‌حل نیست
-   (نامش فارسی است چون باید فارسی باشد)، و android.overridePathCheck هم
-   فقط هشدار را خفه می‌کند؛ خودِ aapt2 باز هم روی مسیرِ فارسی می‌شکند.
-
-   پس این اسکریپت یک «آینه» با مسیرِ کاملاً ASCII می‌سازد، عیناً با همان
-   ساختارِ پروژه، Gradle را آن‌جا اجرا می‌کند، و APK را برمی‌گرداند کنارِ
-   خودِ برنامه. چیدمانِ آینه با اصل یکی است، پس build.gradle هیچ فرقی
-   نمی‌فهمد و لازم نیست چیزی درش شرطی شود.
-
+   و android.overridePathCheck فقط هشدار را خفه می‌کند؛ خودِ aapt2 باز هم
+   روی مسیرِ غیرِ ASCII می‌شکند. پس در آن حالت این اسکریپت یک «آینه» با
+   مسیرِ کاملاً ASCII می‌سازد، Gradle را آن‌جا اجرا می‌کند و APK را
+   برمی‌گرداند کنارِ خودِ برنامه. چیدمانِ آینه با اصل یکی است، پس
+   build.gradle هیچ فرقی نمی‌فهمد و لازم نیست چیزی درش شرطی شود.
    پوشه‌های build/ و .gradle/ در آینه دست‌نخورده می‌مانند تا ساختِ دوم به
    بعد افزایشی و سریع باشد.
+
+   اگر مسیر ASCII باشد — که از وقتی پوشهٔ پروژه به «Spectra» تغییرِ نام
+   داد همین‌طور است — آینه‌ای در کار نیست و Gradle مستقیم روی خودِ
+   پروژه اجرا می‌شود. این هم سریع‌تر است و هم یک تلهٔ واقعی را برمی‌دارد:
+   با آینه، Android Studio باید پوشهٔ آینه را باز می‌کرد نه پوشهٔ اصلی را،
+   وگرنه ویرایش‌ها به جایی می‌رفت که ساخته نمی‌شد.
+
+   تشخیص خودکار است، پس اسکریپت در هر دو حالت درست کار می‌کند و اگر
+   پروژه دوباره به مسیرِ غیرِ ASCII منتقل شود خودش آینه را برمی‌گرداند.
    ===================================================================== */
 "use strict";
 const fs = require("fs");
@@ -33,6 +37,10 @@ const { spawnSync } = require("child_process");
 
 const ROOT = path.resolve(__dirname, "..");
 const MIRROR = path.join(process.env.LOCALAPPDATA || os.tmpdir(), "Spectra-Android-Build");
+
+/* تنها معیار: آیا مسیر نویسهٔ غیرِ ASCII دارد؟ اگر نه، آینه بی‌فایده است. */
+const NEEDS_MIRROR = /[^\x20-\x7E]/.test(ROOT);
+const BUILD_ROOT = NEEDS_MIRROR ? MIRROR : ROOT;
 
 /* همان فهرستی که build.gradle داخلِ assets/www می‌ریزد، به‌اضافهٔ خودِ
    پوشهٔ android. هر چیزِ دیگری (tools/، نسخهٔ تک‌فایل، فایل‌های cmd) در
@@ -143,9 +151,15 @@ function syncMirror() {
 /* --------------------------------------------------------------------
    اجرا
    -------------------------------------------------------------------- */
-console.log("آینهٔ ساخت: " + MIRROR);
-syncMirror();
-console.log("همگام شد. اجرای Gradle (" + GRADLE_TASK + ")…\n");
+if (NEEDS_MIRROR) {
+  console.log("مسیرِ پروژه غیرِ ASCII است، پس از آینه ساخته می‌شود.");
+  console.log("آینهٔ ساخت: " + MIRROR);
+  syncMirror();
+  console.log("همگام شد. اجرای Gradle (" + GRADLE_TASK + ")…\n");
+} else {
+  console.log("ساخت در خودِ پروژه (مسیر ASCII است، آینه لازم نیست).");
+  console.log("اجرای Gradle (" + GRADLE_TASK + ")…\n");
+}
 
 /* Gradle روی ویندوز یک فایلِ .bat است و آن را فقط cmd.exe می‌تواند اجرا
    کند. عمداً از shell:true استفاده نمی‌کنیم: اگر این اسکریپت از داخلِ
@@ -158,7 +172,7 @@ const cmdArgs = isWin
   : [GRADLE_TASK, "--console=plain"];
 
 const res = spawnSync(cmd, cmdArgs, {
-  cwd: path.join(MIRROR, "android"),
+  cwd: path.join(BUILD_ROOT, "android"),
   stdio: "inherit",
   env: Object.assign({}, process.env, {
     JAVA_HOME: JAVA_HOME,
@@ -172,7 +186,7 @@ if (res.status !== 0) fail("Gradle با کد " + res.status + " شکست خور�
 /* --------------------------------------------------------------------
    برگرداندنِ APK
    -------------------------------------------------------------------- */
-const outDir = path.join(MIRROR, "android", "app", "build", "outputs", "apk", VARIANT);
+const outDir = path.join(BUILD_ROOT, "android", "app", "build", "outputs", "apk", VARIANT);
 if (!fs.existsSync(outDir)) fail("پوشهٔ خروجی ساخته نشد: " + outDir);
 const apk = fs.readdirSync(outDir).filter(f => f.endsWith(".apk"))[0];
 if (!apk) fail("در " + outDir + " هیچ APK نبود.");
