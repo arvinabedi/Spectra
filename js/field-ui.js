@@ -152,7 +152,7 @@
   function structureHTML(p) {
     if (!window.Inference || !window.Structure || !window.Renderer) return "";
     if (!Renderer.moleculeSVG || !Structure.depict || !Inference.moleculeOf) return "";
-    let svg = "", strip = "", data = [];
+    let svg = "", strip = "", data = [], frags = [], frMeta = null;
     try {
       const mol = Inference.moleculeOf(p);
       if (!mol) return "";
@@ -173,6 +173,13 @@
         });
         if (data.length) strip = Renderer.shiftStrip(data, { width: 300 });
       }
+      if (window.Fragment) {
+        const fr = Fragment.predict(mol);
+        if (fr && fr.fragments.length) {
+          frags = fr.fragments.filter(f => f.cutBond >= 0).slice(0, 8);
+          frMeta = { M: fr.M };
+        }
+      }
     } catch (e) { return ""; }
     if (!svg) return "";
     const payload = data.length
@@ -184,6 +191,14 @@
           پیش‌بینیِ شیفت — روی هر پیک بروید تا کربنش روشن شود، کلیک کنید تا حساب را ببینید
         </div>
         <div class="pc-c13detail" hidden></div>` : ""}
+      ${frags.length ? `<div class="pc-frags" style="margin-top:8px">
+        <div style="font-size:var(--fs-2xs);color:var(--muted);margin-bottom:4px">
+          مسیرهای شکست (M=${frMeta.M}) — روی هر قطعه بروید تا پیوندی که پاره می‌شود دیده شود
+        </div>
+        ${frags.map(f => `<span class="frag-chip mzchip" data-bond="${f.cutBond}"
+            data-keep="${f.keep.join(",")}" title="${esc(f.fa)}"
+            style="cursor:pointer">${f.mz}</span>`).join("")}
+      </div>` : ""}
     </div>`;
   }
 
@@ -199,14 +214,43 @@
       l.setAttribute("stroke-width", on ? "4.5" : "2.2");
     });
   }
+  /* قطعهٔ جرمی: پیوندی که پاره می‌شود قرمز و بریده‌بریده می‌شود، و
+     اتم‌هایی که *می‌مانند* روشن — یعنی همان چیزی که m/z را می‌سازد. */
+  function markFragment(box, chip, on) {
+    const bi = chip.getAttribute("data-bond");
+    box.querySelectorAll('.mol-bond[data-bond="' + bi + '"]').forEach(l => {
+      l.setAttribute("stroke", on ? "var(--plot-o)" : "transparent");
+      l.setAttribute("stroke-dasharray", on ? "4 3" : "");
+    });
+    const keep = (chip.getAttribute("data-keep") || "").split(",").filter(Boolean);
+    keep.forEach(i => {
+      box.querySelectorAll('.mol-atom[data-atom="' + i + '"]').forEach(c => {
+        c.setAttribute("fill", on ? "var(--focus)" : "transparent");
+        c.setAttribute("fill-opacity", on ? "0.18" : "1");
+      });
+    });
+  }
+
   function wireC13Linking() {
     document.addEventListener("pointerover", e => {
+      const chip = e.target.closest && e.target.closest(".mzchip");
+      if (chip) {
+        const b = chip.closest(".pc-structure");
+        if (b) markFragment(b, chip, true);
+        return;
+      }
       const t = e.target.closest && e.target.closest("[data-cls]");
       if (!t) return;
       const box = t.closest(".pc-structure");
       if (box) markClass(box, t.getAttribute("data-cls"), true);
     });
     document.addEventListener("pointerout", e => {
+      const chip = e.target.closest && e.target.closest(".mzchip");
+      if (chip) {
+        const b = chip.closest(".pc-structure");
+        if (b) markFragment(b, chip, false);
+        return;
+      }
       const t = e.target.closest && e.target.closest("[data-cls]");
       if (!t) return;
       const box = t.closest(".pc-structure");

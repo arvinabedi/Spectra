@@ -402,7 +402,9 @@ data/
 js/
   inference.js              موتور استنتاج شامل مونتاژ، امتیازدهی و تشخیص تناقض
   calculators.js            محاسبه‌گرها و وضعیت سراسری State
-  structure.js              تجزیه‌گر SMILES و شمارنده تقارن
+  structure.js              تجزیه‌گر SMILES، شمارنده تقارن و چیدمان دوبعدی
+  predict.js                پیش‌بینی شیفت ¹³C هر اتم، همراه با جمعی که به آن رسیده
+  fragment.js               مسیرهای شکست جرمی روی گراف واقعی مولکول
   renderer.js               رسم SVG برای ساختار، طیف نواری، COSY و تقارن
   app.js                    کنترلر رابط کاربری
   field-ui.js               رابط بانک سؤالات
@@ -415,6 +417,8 @@ js/
 tools/                      ابزارهای ساخت، ممیزی و سرور محلی
   derive-signatures.js      استخراج امضا و زنجیره از متن فارسی طیف‌ها
   derive-bonds.js           بازیابی گراف اتصال بلوک‌ها از روی ظرفیت‌ها
+  test-predict.js           سنجش دقت پیش‌بین شیفت ¹³C روی خود بانک
+  test-fragment.js          شکست جرمی محاسبه‌شده در برابر MS ثبت‌شده
   structure-overrides.js    اسکلت دستی؛ ورودی derive-bonds.js
   validate-database.js      ممیزی یکپارچگی پایگاه دانش
 assets/spectra/             تصاویر طیف

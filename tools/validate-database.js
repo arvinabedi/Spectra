@@ -39,7 +39,7 @@ const DATA_FILES = [
 ];
 const CODE_FILES = [
   "js/app.js", "js/inference.js", "js/calculators.js", "js/renderer.js",
-  "js/structure.js", "js/predict.js", "js/live-viz.js", "js/practice.js", "js/field-ui.js",
+  "js/structure.js", "js/predict.js", "js/fragment.js", "js/live-viz.js", "js/practice.js", "js/field-ui.js",
   "js/session.js", "js/reference-tables.js", "index.html"
 ];
 

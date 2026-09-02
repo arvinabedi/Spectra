@@ -1047,8 +1047,14 @@
       `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" ` +
       `stroke="${c || COL.bond}" stroke-width="${w || 1.7}" stroke-linecap="round"/>`;
 
-    B.forEach(b => {
+    B.forEach((b, bi) => {
       const [x1, y1, x2, y2] = trim(tx(A[b.a].x), ty(A[b.a].y), tx(A[b.b].x), ty(A[b.b].y), b.a, b.b);
+      /* هر پیوند یک خطِ نامرئیِ روکش می‌گیرد تا شکستِ جرمی بتواند
+         «این پیوند پاره می‌شود» را نشان بدهد. */
+      if (opts.interactive) {
+        s += `<line class="mol-bond" data-bond="${bi}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" ` +
+             `x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="transparent" stroke-width="7"/>`;
+      }
       const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
       const ox = (-dy / len) * 3.4, oy = (dx / len) * 3.4;
       const ring = ringOf(b.a, b.b);
