@@ -49,8 +49,15 @@
     Br:   { a: 20, b: 11, g: -3, fa: "برم" },
     I:    { a: -6, b: 11, g: -2, fa: "ید" },
     S:    { a: 11, b: 12, g: -6, fa: "گوگرد" },
-    CO:   { a: 22, b: 3, g: -3, fa: "کربونیلِ مجاور" },
-    CN:   { a: 3, b: 3, g: -3, fa: "نیتریل" }
+    /* این سه مقدار اثرِ *کلِ* گروه‌اند، نه اثرِ اضافه بر کربنش: کربنِ
+       کربونیل و کربنِ نیتریل از شمارشِ اسکلتِ گرانت-پاول کنار گذاشته
+       می‌شوند تا یک اتم دو بار پول نگیرد. کالیبره‌شده روی موارد شناخته:
+       متیلِ استون ۳۰.۸، متیلِ استیک اسید ۲۰.۸، متیلِ پروپیونیک اسید ۹.۰،
+       متیلِ استونیتریل ۱.۳. */
+    CO:   { a: 24, b: 3, g: -3, fa: "کربونیلِ کتونی مجاور" },
+    CHO:  { a: 33, b: 3, g: -3, fa: "آلدهیدِ مجاور" },
+    COX:  { a: 23, b: 2, g: -2, fa: "کربونیلِ اسید/استر/آمید مجاور" },
+    CN:   { a: 3.6, b: 3, g: -3, fa: "نیتریل" }
   };
 
   /* پایهٔ کربنِ کربونیل به تفکیکِ کلاس. مزدوج‌شدن با حلقه یا آلکن
@@ -65,7 +72,12 @@
     anhydride:{ d: 165, fa: "انیدرید" },
     /* کربناتِ دی‌آلکیل دو اکسیژنِ تک‌پیوندی دارد و کربونیلش با هر دو
        رزونانس می‌کند، پس بسیار بالاتر شیلد می‌شود: ~۱۵۵ نه ۱۷۱ استری. */
-    carbonate:{ d: 155, fa: "کربنات" }
+    carbonate:{ d: 155, fa: "کربنات" },
+    /* آمینواسید در آب/D₂O دوقطبی است: پروتونِ COOH روی نیتروژن می‌نشیند و
+       آن‌چه دیده می‌شود کربوکسیلات است نه اسیدِ آزاد. رکوردهای همین بانک
+       هم صریح می‌گویند «NH₃⁺ و COOH، در D₂O محو». کربوکسیلاتِ آمینواسید
+       حدودِ ۱۷۵ می‌افتد، نه ۱۷۸ اسیدِ آزاد. */
+    carboxylate:{ d: 175, fa: "کربوکسیلاتِ دوقطبی" }
   };
 
   function adjacency(mol) {
@@ -150,8 +162,22 @@
     return { delta: total, terms: terms, kind: "آروماتیک" };
   }
 
+  /* مولکول وقتی دوقطبی است که هم کربوکسیلِ آزاد داشته باشد هم نیتروژنِ
+     بازی (نیتروژنی که خودش به کربونیل نچسبیده و پس هنوز جفتِ آزاد دارد).
+     آمید این شرط را ندارد، پس گلیسیل‌گلیسین از سرِ آمینِ انتهایی‌اش
+     دوقطبی می‌شود نه از سرِ پیوندِ پپتیدی. */
+  function isZwitterion(mol, adj) {
+    const acid = mol.atoms.some((a, i) => a.el === "C" &&
+      adj[i].some(e => e.order === 2 && mol.atoms[e.to].el === "O") &&
+      adj[i].some(e => e.order === 1 && mol.atoms[e.to].el === "O" && mol.atoms[e.to].H > 0));
+    if (!acid) return false;
+    return mol.atoms.some((a, i) => a.el === "N" && a.H > 0 &&
+      !adj[i].some(e => mol.atoms[e.to].el === "C" &&
+        adj[e.to].some(x => x.order === 2 && mol.atoms[x.to].el === "O")));
+  }
+
   /* ---------- کربنِ کربونیل ---------- */
-  function carbonylShift(mol, adj, i) {
+  function carbonylShift(mol, adj, i, zwitter) {
     const nb = adj[i];
     const dblO = nb.find(e => e.order === 2 && mol.atoms[e.to].el === "O");
     if (!dblO) return null;
@@ -166,7 +192,8 @@
       const other = adj[singleO[0].to].find(e => e.to !== i && mol.atoms[e.to].el === "C" &&
         adj[e.to].some(x => x.order === 2 && mol.atoms[x.to].el === "O"));
       if (other) kind = "anhydride";
-      else kind = mol.atoms[singleO[0].to].H > 0 ? "acid" : "ester";
+      else kind = mol.atoms[singleO[0].to].H > 0
+        ? (zwitter ? "carboxylate" : "acid") : "ester";
     } else if (nitro.length) kind = "amide";
     else if (chlor.length) kind = "acyl_cl";
     else if (mol.atoms[i].H > 0) kind = "aldehyde";
@@ -239,9 +266,48 @@
     if (a.el === "F" || a.el === "Cl" || a.el === "Br" || a.el === "I") return a.el;
     if (a.el === "C") {
       if (adj[at].some(e => e.order === 3 && mol.atoms[e.to].el === "N")) return "CN";
-      if (adj[at].some(e => e.order === 2 && mol.atoms[e.to].el === "O")) return "CO";
+      if (adj[at].some(e => e.order === 2 && mol.atoms[e.to].el === "O")) {
+        // اسید/استر/آمید در برابرِ کتون در برابرِ آلدهید
+        const hasON = adj[at].some(e => e.order === 1 &&
+          (mol.atoms[e.to].el === "O" || mol.atoms[e.to].el === "N"));
+        if (hasON) return "COX";
+        return a.H > 0 ? "CHO" : "CO";
+      }
     }
     return null;
+  }
+
+  /* ---------- اتم‌هایی که «مصرف‌شده»اند ----------
+     وقتی کربنِ کربونیل به‌عنوان یک اثرِ واحد (CO/COX) شمرده می‌شود،
+     اکسیژن‌ها و نیتروژنِ همان گروه نباید *دوباره* هم شمرده شوند. آلانین
+     نمونهٔ روشن بود: کربنِ آلفا هم «آلفای کربونیل» می‌گرفت هم اکسیژن‌های
+     همان کربوکسیل را به‌عنوان اثرِ بتا، و ۹۶ درمی‌آمد به‌جای ۵۱.
+
+     ولی «مصرف‌شده» مطلق نیست، نسبت به کربنی است که داریم حسابش می‌کنیم.
+     در اتیل استات، متیلنِ اتوکسی مستقیم به همان اکسیژنِ استری چسبیده و
+     آن اکسیژن اثرِ آلفای واقعی‌اش را دارد؛ اگر سراسری خطش بزنیم، OCH₂
+     از ۶۰ به ۱۵ سقوط می‌کند. معیار: اتم فقط وقتی مصرف‌شده است که
+     کوتاه‌ترین راهش به کربنِ موردنظر از خودِ همان کربنِ کربونیل بگذرد
+     (یعنی یک پله دورتر از آن باشد). */
+  function consumedAtoms(mol, adj, dist) {
+    const dead = new Set();
+    const swallow = (owner, pred) => {
+      if (dist[owner] < 0) return;
+      adj[owner].forEach(e => {
+        if (!pred(e)) return;
+        if (dist[e.to] === dist[owner] + 1) dead.add(e.to);
+      });
+    };
+    mol.atoms.forEach((a, i) => {
+      if (a.el === "C") {
+        if (adj[i].some(e => e.order === 2 && mol.atoms[e.to].el === "O"))
+          swallow(i, e => mol.atoms[e.to].el === "O" || mol.atoms[e.to].el === "N");
+        swallow(i, e => e.order === 3 && mol.atoms[e.to].el === "N");
+      }
+      if (a.el === "N" && adj[i].filter(e => mol.atoms[e.to].el === "O").length >= 2)
+        swallow(i, e => mol.atoms[e.to].el === "O");
+    });
+    return dead;
   }
 
   /* ---------- استال و کتال ----------
@@ -275,9 +341,16 @@
         q.push(e.to);
       }
     }
+    /* کربنِ کربونیل و کربنِ نیتریل در شمارشِ اسکلت نمی‌آیند: اثرشان
+       یک‌جا در ترمِ CO/COX/CN حساب شده و شمردنِ دوباره‌شان همان خطایی
+       بود که متیلِ پروپیونیک اسید را ۱۸ می‌کرد به‌جای ۹. */
+    const carried = j => mol.atoms[j].el === "C" &&
+      adj[j].some(e => (e.order === 2 && mol.atoms[e.to].el === "O") ||
+                       (e.order === 3 && mol.atoms[e.to].el === "N"));
     const cAt = d => {
       let c = 0;
-      for (let j = 0; j < n; j++) if (dist[j] === d && mol.atoms[j].el === "C") c++;
+      for (let j = 0; j < n; j++)
+        if (dist[j] === d && mol.atoms[j].el === "C" && !carried(j)) c++;
       return c;
     };
     const a = cAt(1), b = cAt(2), g = cAt(3), dd = cAt(4);
@@ -295,8 +368,10 @@
     const SAT = [1, 0.55, 0.4, 0.3];
     let unknown = false;
     const usedCount = {};
+    const dead = consumedAtoms(mol, adj, dist);
     for (let j = 0; j < n; j++) {
       if (dist[j] < 1 || dist[j] > 3) continue;
+      if (dead.has(j)) continue;               // جزوِ گروهی که یک‌جا شمرده شد
       const key = heteroKeyOf(mol, adj, j, i);
       if (!key) continue;
       const h = HETERO[key];
@@ -332,12 +407,13 @@
     DB = DB || root.DB;
     const INCR = (DB && DB.c13BenzeneIncrements) || [];
     const adj = adjacency(mol);
+    const zwitter = isZwitterion(mol, adj);
     return mol.atoms.map((a, i) => {
       if (a.el !== "C") return null;
       if (adj[i].some(e => e.order === 3 && mol.atoms[e.to].el === "N"))
         return { delta: 118, terms: [{ fa: "نیتریل (پایه)", v: 118 }], kind: "نیتریل" };
       if (a.arom) return aromaticShift(mol, adj, i, INCR);
-      const co = carbonylShift(mol, adj, i);
+      const co = carbonylShift(mol, adj, i, zwitter);
       if (co) return co;
       const alk = alkeneShift(mol, adj, i);
       if (alk) return alk;

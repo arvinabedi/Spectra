@@ -276,7 +276,7 @@
           <tr><th style="text-align:right">جمع</th>
               <th class="en" style="text-align:left;direction:ltr">${row.delta.toFixed(1)}</th></tr>
         </table>
-        <small style="color:var(--muted)">قاعدهٔ افزایشی است، نه اندازه‌گیری؛ خطای میانگینش روی همین بانک ~۵ ppm است.</small>
+        <small style="color:var(--muted)">قاعدهٔ افزایشی است، نه اندازه‌گیری؛ خطای میانگینش روی همین بانک ۳٫۴ ppm است و ۷۹٪ از شیفت‌ها زیر ۵ ppm.</small>
       </div>`;
       out.hidden = false;
     });

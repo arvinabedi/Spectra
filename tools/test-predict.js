@@ -129,6 +129,47 @@ console.log("\n  کنار گذاشته شد — بدونِ ساختارِ قطع
             " · کربنِ بی‌قاعده: " + incomplete +
             " · تعدادِ شیفت با تعدادِ محیط نمی‌خواند: " + countMismatch);
 
+/* ---------- لنگرهای کالیبراسیون ----------
+   مقادیرِ ثابت‌های CO/COX/CN از روی همین چند ترکیبِ ساده تنظیم شده‌اند.
+   اگر کسی بعداً عددی را دست بزند، این‌جا اول از همه می‌شکند — و بانک
+   بزرگ است و میانگینش می‌تواند یک خطای موضعی را پنهان کند.
+   [SMILES, نامِ کربن, اندیسِ اتم, شیفتِ مرجع] */
+const ANCHORS = [
+  ["CC(C)=O",     "استون: متیل",            0, 30.8],
+  ["CC(C)=O",     "استون: کربونیل",         1, 206.0],
+  ["CC(O)=O",     "استیک اسید: متیل",       0, 20.8],
+  ["CCC(O)=O",    "پروپیونیک اسید: متیل",   0, 9.0],
+  ["CC#N",        "استونیتریل: متیل",       0, 1.3],
+  ["CCO",         "اتانول: CH₂O",           1, 58.0],
+  ["CCO",         "اتانول: CH₃",            0, 18.2],
+  ["CCCO",        "۱-پروپانول: CH₂O",       2, 64.5],
+  ["CCCN",        "پروپیل‌آمین: CH₂N",       2, 44.5],
+  // اندیس ۴ است نه ۳: در "CC(=O)OCC" اتمِ ۳ خودِ اکسیژنِ استری است
+  ["CC(=O)OCC",   "اتیل استات: OCH₂",       4, 60.4],
+  ["CC=O",        "استالدهید: متیل",        0, 31.2],
+  ["Cc1ccccc1",   "تولوئن: متیل",           0, 21.4],
+  ["CC(C)O",      "ایزوپروپانول: CH",       1, 64.5]
+];
+const TOL = 5;
+let anchorBad = 0;
+console.log("\n--- لنگرهای کالیبراسیون (رواداری ±" + TOL + " ppm) ---");
+ANCHORS.forEach(function (row) {
+  const smi = row[0], label = row[1], idx = row[2], want = row[3];
+  const m = S.computeHydrogens(S.parseSMILES(smi));
+  const got = P.carbon13(m, DB)[idx];
+  if (!got) { console.log("  ✗ " + label + " — پیش‌بینی نشد"); anchorBad++; return; }
+  const d = got.delta - want;
+  const ok = Math.abs(d) <= TOL;
+  if (!ok) anchorBad++;
+  console.log("  " + (ok ? "✓" : "✗") + " " + label.padEnd(26) +
+              "مرجع " + String(want).padStart(6) + "   پیش‌بینی " +
+              got.delta.toFixed(1).padStart(6) + "   اختلاف " + d.toFixed(1).padStart(6));
+});
+if (anchorBad) {
+  console.log("\n" + anchorBad + " لنگر خارج از رواداری — ثابت‌های predict.js را بررسی کنید.");
+  process.exitCode = 1;
+}
+
 rows.sort((a, b) => b.mae - a.mae);
 console.log("\n--- بدترین " + worstN + " ترکیب (برای بهبودِ قاعده‌ها) ---");
 rows.slice(0, worstN).forEach(r => console.log(
