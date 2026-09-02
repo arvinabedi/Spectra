@@ -19,9 +19,43 @@ def webRoot = rootProject.projectDir.parentFile
    بدون ابهام آن را می‌پذیرند. */
 def webAssetsDir = layout.buildDirectory.dir('generated/webAssets').get().asFile
 
+/* امضای نسخهٔ انتشار.
+   کلید و گذرواژه هرگز داخلِ مخزن نمی‌آیند: از android/keystore.properties
+   خوانده می‌شوند که در .gitignore است. اگر آن فایل نباشد، signingConfig
+   اصلاً ساخته نمی‌شود و ساختِ debug مثل قبل کار می‌کند — یعنی کسی که
+   مخزن را clone می‌کند بدونِ کلید هم می‌تواند بسازد.
+
+   ساختِ فایل (خودتان اجرا کنید؛ گذرواژه را کسی جز شما نباید ببیند):
+     keytool -genkeypair -v -keystore spectra-release.jks        -keyalg RSA -keysize 2048 -validity 10000 -alias spectra
+
+   سپس android/keystore.properties با این چهار کلید:
+     storeFile=C:/path/to/spectra-release.jks
+     storePassword=...
+     keyAlias=spectra
+     keyPassword=...
+
+   کلید را گم نکنید و از آن پشتیبان بگیرید: هر به‌روزرسانیِ بعدی باید با
+   همین کلید امضا شود، وگرنه فروشگاه آن را برنامهٔ دیگری می‌بیند. */
+def keystorePropsFile = rootProject.file('keystore.properties')
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+
 android {
     namespace 'ir.spectra.structure'
     compileSdk 35
+
+    signingConfigs {
+        if (keystorePropsFile.exists()) {
+            release {
+                storeFile file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
 
     defaultConfig {
         applicationId 'ir.spectra.structure'
@@ -42,6 +76,14 @@ android {
             minifyEnabled false
             shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            /* بدونِ keystore.properties این خط اجرا نمی‌شود و خروجی
+               امضانشده می‌ماند — که فروشگاه‌ها ردش می‌کنند. پیام زیر
+               همان موقع در لاگِ ساخت دیده می‌شود. */
+            if (keystorePropsFile.exists()) {
+                signingConfig signingConfigs.release
+            } else {
+                logger.warn('⚠ android/keystore.properties نیست — خروجیِ release امضا نمی‌شود.')
+            }
         }
     }
 

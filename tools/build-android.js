@@ -51,8 +51,11 @@ const WEB_ITEMS = ["index.html", "css", "js", "data", "assets"];
 const KEEP_IN_MIRROR = new Set(["build", ".gradle"]);
 
 const RELEASE = process.argv.includes("--release");
-const VARIANT = RELEASE ? "release" : "debug";
-const GRADLE_TASK = RELEASE ? "assembleRelease" : "assembleDebug";
+/* گوگل‌پلی برای برنامهٔ تازه فقط AAB می‌پذیرد، نه APK. کافه‌بازار و نصبِ
+   مستقیم همچنان APK می‌خواهند. پس هر دو مسیر لازم است. */
+const BUNDLE = process.argv.includes("--bundle");
+const VARIANT = RELEASE || BUNDLE ? "release" : "debug";
+const GRADLE_TASK = BUNDLE ? "bundleRelease" : (RELEASE ? "assembleRelease" : "assembleDebug");
 
 /* --------------------------------------------------------------------
    یافتنِ JDK و Gradle
@@ -185,15 +188,22 @@ if (res.status !== 0) fail("Gradle با کد " + res.status + " شکست خور�
 /* --------------------------------------------------------------------
    برگرداندنِ APK
    -------------------------------------------------------------------- */
-const outDir = path.join(BUILD_ROOT, "android", "app", "build", "outputs", "apk", VARIANT);
+const outDir = BUNDLE
+  ? path.join(BUILD_ROOT, "android", "app", "build", "outputs", "bundle", VARIANT)
+  : path.join(BUILD_ROOT, "android", "app", "build", "outputs", "apk", VARIANT);
 if (!fs.existsSync(outDir)) fail("پوشهٔ خروجی ساخته نشد: " + outDir);
-const apk = fs.readdirSync(outDir).filter(f => f.endsWith(".apk"))[0];
-if (!apk) fail("در " + outDir + " هیچ APK نبود.");
+const ext = BUNDLE ? ".aab" : ".apk";
+const apk = fs.readdirSync(outDir).filter(f => f.endsWith(ext))[0];
+if (!apk) fail("در " + outDir + " هیچ " + ext + " نبود.");
+if (RELEASE && /unsigned/i.test(apk)) {
+  console.warn("\n⚠ خروجی امضا نشده است (" + apk + ").");
+  console.warn("  android/keystore.properties را بسازید، وگرنه فروشگاه ردش می‌کند.");
+}
 
 /* نسخهٔ روزمره همان «Spectra.apk» است — همان نامی که کاربر خودش
    دستی گذاشته بود. فقط نسخهٔ انتشار برچسب می‌خورد، چون آن یکی است
    که نباید با نصبیِ روزمره اشتباه شود. */
-const dest = path.join(ROOT, "Spectra" + (RELEASE ? "-release" : "") + ".apk");
+const dest = path.join(ROOT, "Spectra" + (VARIANT === "release" ? "-release" : "") + ext);
 fs.copyFileSync(path.join(outDir, apk), dest);
 
 const mb = (fs.statSync(dest).size / (1024 * 1024)).toFixed(2);

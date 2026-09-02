@@ -52,3 +52,10 @@ desktop.ini
 # نیاز دارد و کلونِ تازه باید بدون اجرای ابزارها کار کند:
 #   data/database-signatures.js   (node tools/derive-signatures.js)
 #   data/spectra-manifest.js      (node tools/build-spectra-manifest.js)
+
+# ===== کلیدِ امضای انتشار — هرگز وارد مخزن نشود =====
+# گذرواژه و خودِ کلید فقط روی دستگاهِ شما می‌مانند. اگر اینها لو بروند،
+# هر کسی می‌تواند به‌روزرسانیِ جعلی برای همین برنامه منتشر کند.
+android/keystore.properties
+*.jks
+*.keystore
