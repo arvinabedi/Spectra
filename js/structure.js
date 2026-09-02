@@ -195,15 +195,15 @@
   }
 
   /* ---------- پالایش رنگ (مورگان-وار) برای یافتن اتم‌های هم‌ارز ---------- */
-  function refineClasses(mol) {
-    const { atoms } = mol;
-    normalizeResonance(mol);
-    // نشانوند اولیه: عنصر + آروماتیک + بار + H + درجه + چندگانهٔ مرتبهٔ پیوندها
-    let labels = atoms.map(a => {
+  const idOf = arr => { const m = {}; let c = 0; return arr.map(x => (m[x] == null ? (m[x] = c++) : m[x])); };
+
+  /* یک دور پالایشِ رنگ. seed برچسبِ اضافیِ هر اتم است و از بیرون می‌آید؛
+     تفاوتی که در seed کاشته شود، خودبه‌خود در کلِ شاخه پخش می‌شود. */
+  function refinePass(atoms, seed) {
+    let labels = atoms.map((a, k) => {
       const orders = a._nbr.map(x => x.res).sort().join(",");
-      return `${a.el}|${a.arom ? "a" : ""}|${a.charge}|H${a.H}|d${a.deg}|b${orders}`;
+      return `${a.el}|${a.arom ? "a" : ""}|${a.charge}|H${a.H}|d${a.deg}|b${orders}|${seed[k] || ""}`;
     });
-    const idOf = arr => { const m = {}; let c = 0; return arr.map(x => (m[x] == null ? (m[x] = c++) : m[x])); };
     let cls = idOf(labels);
     for (let iter = 0; iter < atoms.length + 2; iter++) {
       const next = atoms.map((a, k) => {
@@ -213,6 +213,69 @@
       const nc = idOf(next);
       if (new Set(nc).size === new Set(cls).size) { cls = nc; break; }
       cls = nc;
+    }
+    return cls;
+  }
+
+  /* ---------- شکافِ هندسیِ دو استخلافِ همسانِ روی یک کربنِ آلکنی ----------
+     پالایشِ رنگ تقارنِ *ساختاری* را می‌شمارد و برای همین دو متیلِ روی یک
+     کربنِ sp² را یکی می‌بیند: در گراف واقعاً قابلِ تعویض‌اند. ولی پیوندِ
+     دوگانه نمی‌چرخد، پس یکی سیس و دیگری ترانس می‌نشیند و دو محیطِ متفاوت
+     می‌سازند.
+
+     مزیتیل اکسید (CH₃)₂C=CH–CO–CH₃ نمونهٔ گویاست: طیفِ واقعی‌اش شش سیگنالِ
+     ¹³C دارد (۱۹۸.۵، ۱۵۵.۰، ۱۲۴.۲، ۳۲.۰، ۲۷.۵، ۲۰.۶) و دو عددِ آخر همان
+     دو متیلِ جمینال‌اند. موتور پیش از این پنج می‌شمرد.
+
+     نکتهٔ مهم برای نگه‌داری: RDKit هم — آن‌طور که در tools/test-inference.js
+     صدا زده می‌شود — رتبه‌بندیِ ساختاری می‌دهد و همین پنج را برمی‌گرداند.
+     یعنی اوراکلِ آزمون همین کوری را دارد و این خطا از دیدش پنهان بود؛
+     تنها چیزی که گرفتش، شمارِ واقعیِ ¹³C در خودِ بانک بود.
+
+     قاعده: استخلاف‌های کربنِ x وقتی از هم جدا می‌شوند که (۱) گراف الان
+     یکی‌شان می‌بیند و (۲) کربنِ روبه‌رو دو استخلافِ *متفاوت* داشته باشد
+     (هیدروژن هم یک استخلاف است). اگر روبه‌رو خودش متقارن باشد چیزی برای
+     سیس/ترانس‌شدن نیست: در ایزوبوتیلن (CH₃)₂C=CH₂ دو متیل واقعاً یکی‌اند.
+
+     محدودیتِ شناخته‌شده: برچسبِ سیس/ترانس با اندیس انتخاب می‌شود، نه با
+     هندسهٔ واقعی (SMILES های پایگاه / و \ ندارند). برای شمارش کافی است،
+     ولی اگر مولکولی *دو* آلکنِ این‌شکلی داشته باشد که تقارنِ خودِ مولکول
+     آن‌ها را به هم می‌نگارد، ممکن است بیش از واقع بشمارد. در کلِ بانک
+     چنین ترکیبی نیست (سه ترکیب مشمول‌اند و هرکدام فقط یک کربنِ این‌شکلی
+     دارند: مزیتیل اکسید، نرول، ژرانیول). */
+  function geminalAlkeneSplits(mol, cls, seed) {
+    const { atoms } = mol;
+    let changed = false;
+    mol.bonds.forEach(b => {
+      if (b.order !== 2) return;
+      const A = atoms[b.a], B = atoms[b.b];
+      if (A.arom || B.arom) return;               // حلقهٔ آروماتیک هندسهٔ ثابتِ سیس/ترانس ندارد
+      if (A.el !== "C" || B.el !== "C") return;
+      [[b.a, b.b], [b.b, b.a]].forEach(pair => {
+        const x = pair[0], y = pair[1];
+        const subs = atoms[x]._nbr.filter(n => n.n !== y).map(n => n.n);
+        if (subs.length !== 2) return;            // باید دقیقاً دو استخلاف باشد
+        if (cls[subs[0]] !== cls[subs[1]]) return; // از قبل جدا هستند
+        const yk = atoms[y]._nbr.filter(n => n.n !== x).map(n => "c" + cls[n.n]);
+        for (let i = 0; i < atoms[y].H; i++) yk.push("H");
+        if (yk.length !== 2 || yk[0] === yk[1]) return;  // روبه‌رو متقارن است
+        const lo = Math.min(subs[0], subs[1]);
+        if (!seed[lo]) { seed[lo] = "geom"; changed = true; }
+      });
+    });
+    return changed;
+  }
+
+  function refineClasses(mol) {
+    const { atoms } = mol;
+    normalizeResonance(mol);
+    const seed = new Array(atoms.length).fill("");
+    let cls = refinePass(atoms, seed);
+    /* یک شکاف می‌تواند شکافِ بعدی را ممکن کند، پس تا پایدارشدن تکرار
+       می‌شود؛ سقفِ کوچک چون هر دور دست‌کم یک اتم را برچسب می‌زند. */
+    for (let round = 0; round < 4; round++) {
+      if (!geminalAlkeneSplits(mol, cls, seed)) break;
+      cls = refinePass(atoms, seed);
     }
     return cls;
   }
