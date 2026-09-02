@@ -21,7 +21,9 @@ const ROOT = path.resolve(__dirname, "..");
    پیش‌تر «سامانه-تعیین-ساختار.html» بود و کاربر فایل را دستی به این نام
    عوض می‌کرد؛ نتیجه‌اش این می‌شد که ساختِ بعدی یک فایلِ دومِ تازه
    می‌ساخت و نسخهٔ تغییرنام‌داده بی‌صدا کهنه می‌ماند. */
-const OUT = path.join(ROOT, "Spectra - Desktop.html");
+/* بدونِ فاصله. گیت‌هاب در نامِ پیوستِ ریلیز فاصله را به نقطه تبدیل
+   می‌کند و فایل «Spectra.-.Desktop.html» دانلود می‌شود. */
+const OUT = path.join(ROOT, "Spectra-Desktop.html");
 
 const MIME = {
   ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
