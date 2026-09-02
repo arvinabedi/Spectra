@@ -1087,6 +1087,18 @@
            `fill="none" stroke="${COL.bond}" stroke-width="1.4" opacity="0.75"/>`;
     });
 
+    /* دایره‌های نامرئیِ نشانه‌گیری: در حالتِ اسکلتی کربن هیچ عنصرِ
+       تصویری ندارد (گره است، نه حرف)، پس چیزی برای هاور یا کلیک وجود
+       ندارد. این‌ها هدفِ اشاره‌گر و هم‌زمان محلِ برجسته‌سازی‌اند و با
+       data-atom/data-cls به پیک‌های طیف وصل می‌شوند. */
+    if (opts.interactive) {
+      A.forEach((a, i) => {
+        s += `<circle class="mol-atom" data-atom="${i}" data-cls="${a.classId}" ` +
+             `cx="${tx(a.x).toFixed(1)}" cy="${ty(a.y).toFixed(1)}" r="12" ` +
+             `fill="transparent" stroke="none" style="cursor:pointer"/>`;
+      });
+    }
+
     A.forEach((a, i) => {
       if (!labelled[i]) return;
       const x = tx(a.x), y = ty(a.y), col = colOf(a), lbl = labelOf(a);
@@ -1103,6 +1115,41 @@
 
     s += `</svg>`;
     return symMode ? { svg: s, palette: SYM_PALETTE } : s;
+  }
+
+  /* =====================================================================
+     shiftStrip — نوارِ پیک‌های ¹³C که به اتم‌ها وصل است
+     ---------------------------------------------------------------------
+     هر پیک data-cls دارد، همان شناسه‌ای که دایره‌های نشانه‌گیریِ
+     moleculeSVG دارند. پیوندِ «کدام پیک، کدام کربن» با همین یک صفت
+     برقرار می‌شود و هیچ حالتِ اضافه‌ای لازم نیست.
+     محورِ ۲۲۰→۰ از چپ به راست، همان قراردادِ spectrumTrace.
+     ===================================================================== */
+  function shiftStrip(peaks, opts) {
+    opts = opts || {};
+    if (!peaks || !peaks.length) return "";
+    const W = opts.width || 300, H2 = 62, padX = 10, top = 10, base = 40;
+    const lo = 0, hi = 220;
+    const x = d => padX + (W - 2 * padX) * (1 - (Math.max(lo, Math.min(hi, d)) - lo) / (hi - lo));
+    let s = `<svg direction="ltr" viewBox="0 0 ${W} ${H2}" xmlns="${NS}" ` +
+            `font-family="Vazirmatn, Tahoma, sans-serif">`;
+    s += `<line x1="${padX}" y1="${base}" x2="${W - padX}" y2="${base}" stroke="${COL.ring}" stroke-width="1"/>`;
+    [200, 150, 100, 50, 0].forEach(t => {
+      s += `<line x1="${x(t).toFixed(1)}" y1="${base}" x2="${x(t).toFixed(1)}" y2="${base + 3}" stroke="${COL.ring}" stroke-width="1"/>`;
+      s += `<text x="${x(t).toFixed(1)}" y="${base + 15}" fill="${COL.ring}" font-size="9" text-anchor="middle">${t}</text>`;
+    });
+    peaks.forEach(p => {
+      const col = SYM_PALETTE[p.classId % SYM_PALETTE.length];
+      const px = x(p.delta);
+      s += `<g class="c13-peak" data-cls="${p.classId}" style="cursor:pointer">`;
+      // هدفِ کلیکِ پهن‌تر از خودِ خط، وگرنه گرفتنش سخت است
+      s += `<rect x="${(px - 6).toFixed(1)}" y="${top - 4}" width="12" height="${base - top + 8}" fill="transparent"/>`;
+      s += `<line x1="${px.toFixed(1)}" y1="${top}" x2="${px.toFixed(1)}" y2="${base}" stroke="${col}" stroke-width="2.2"/>`;
+      s += `<title>${escAttr(p.delta.toFixed(1) + " ppm — " + (p.kind || ""))}</title>`;
+      s += `</g>`;
+    });
+    s += `</svg>`;
+    return s;
   }
 
   /* --- فلوچارت شماتیک شناسایی کلاسیک (طرح حلالیت شرینر) --- */
@@ -1157,7 +1204,7 @@
   root.Renderer = {
     renderChain, renderFragmentChips, blockGlyph, splittingTree,
     renderCorrelationGrid, renderMixtureBars, renderIsotopePattern,
-    symmetrySVG, moleculeSVG, solubilityFlowchart, spectrumTrace
+    symmetrySVG, moleculeSVG, shiftStrip, solubilityFlowchart, spectrumTrace
   };
   // نکته: نسخهٔ اصلی این خروجی CommonJS را نداشت (برخلاف structure.js) و
   // فقط در مرورگر (window.Renderer) قابل استفاده بود؛ برای یکدستی و

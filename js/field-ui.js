@@ -136,28 +136,106 @@
      صفحه ~۵۰٬۰۰۰ پیکسل ارتفاع می‌گرفت؛ اسکن کردن بانک عملاً ناممکن بود.
      open را وقتی نتیجهٔ جست‌وجو کم است باز می‌گذاریم (کاربر دنبال همان
      یک مورد است)، نه در حالت مرور کامل. */
-  /* ---------- ساختارِ اسکلتیِ ترکیب ----------
+  /* ---------- ساختارِ اسکلتی + نوارِ پیوستهٔ ¹³C ----------
      تا پیش از این، کارتِ بانک فقط فهرستِ قطعاتِ فارسی را نشان می‌داد
      («پارا-فنیلن، کربونیل، متیل») و دانشجو باید خودش ساختار را در ذهن
      سرِهم می‌کرد. حالا که هر رکورد گرافِ اتصالِ راستی‌آزمایی‌شده دارد
-     (data/bond-graphs.js)، همان مولکول کشیده می‌شود.
+     (data/bond-graphs.js)، همان مولکول کشیده می‌شود — و پیک‌های ¹³C به
+     اتم‌ها وصل‌اند: روی هر پیک بروید، کربنِ متناظرش روشن می‌شود، و با
+     کلیک، جمعی که به آن شیفت رسیده باز می‌شود.
 
-     قاعدهٔ صداقت: moleculeOf فقط وقتی مولکول برمی‌گرداند که *همهٔ*
-     چیدمان‌های ممکن به یک ساختار برسند. اگر ساختار قطعی نباشد هیچ
-     نموداری کشیده نمی‌شود — نقشهٔ غلط از نبودِ نقشه بدتر است. */
+     قاعدهٔ صداقت: moleculeOf فقط وقتی مولکول می‌دهد که همهٔ چیدمان‌های
+     ممکن به یک ساختار برسند، و Predict برای کربنِ بی‌قاعده null
+     برمی‌گرداند. اگر ساختار قطعی نباشد نموداری کشیده نمی‌شود، و اگر
+     شیفتی قابلِ محاسبه نباشد پیکش کشیده نمی‌شود. عددِ حدسی نشان
+     نمی‌دهیم. */
   function structureHTML(p) {
     if (!window.Inference || !window.Structure || !window.Renderer) return "";
     if (!Renderer.moleculeSVG || !Structure.depict || !Inference.moleculeOf) return "";
-    let svg = "";
+    let svg = "", strip = "", data = [];
     try {
       const mol = Inference.moleculeOf(p);
       if (!mol) return "";
-      svg = Renderer.moleculeSVG(Structure.depict(mol), {
-        width: 300, height: 190, title: "ساختار " + (p.en || p.name || "")
+      const lay = Structure.depict(mol);
+      svg = Renderer.moleculeSVG(lay, {
+        width: 300, height: 190, interactive: true,
+        title: "ساختار " + (p.en || p.name || "")
       });
+      if (window.Predict && Renderer.shiftStrip) {
+        const pred = Predict.carbon13(mol, window.DB);
+        const seenCls = {};
+        lay.atoms.forEach((a, i) => {
+          if (a.el !== "C" || !pred[i]) return;
+          if (seenCls[a.classId]) return;
+          seenCls[a.classId] = 1;
+          data.push({ classId: a.classId, delta: pred[i].delta,
+                      kind: pred[i].kind, terms: pred[i].terms });
+        });
+        if (data.length) strip = Renderer.shiftStrip(data, { width: 300 });
+      }
     } catch (e) { return ""; }
     if (!svg) return "";
-    return `<div class="pc-structure" style="text-align:center;margin:2px 0 10px">${svg}</div>`;
+    const payload = data.length
+      ? ` data-c13='${esc(JSON.stringify(data)).replace(/'/g, "&#39;")}'` : "";
+    return `<div class="pc-structure" style="text-align:center;margin:2px 0 10px"${payload}>
+      ${svg}
+      ${strip ? `<div class="pc-c13strip">${strip}</div>
+        <div class="pc-c13hint" style="font-size:var(--fs-2xs);color:var(--muted)">
+          پیش‌بینیِ شیفت — روی هر پیک بروید تا کربنش روشن شود، کلیک کنید تا حساب را ببینید
+        </div>
+        <div class="pc-c13detail" hidden></div>` : ""}
+    </div>`;
+  }
+
+  /* ---------- پیوندِ پیک ↔ اتم ----------
+     یک شنوندهٔ واگذارشده برای کلِ صفحه: کارت‌ها پویا ساخته می‌شوند و
+     بستنِ شنونده به تک‌تکشان با هر بار رندر نشت می‌کرد. */
+  function markClass(box, cls, on) {
+    box.querySelectorAll('.mol-atom[data-cls="' + cls + '"]').forEach(c => {
+      c.setAttribute("fill", on ? "var(--focus)" : "transparent");
+      c.setAttribute("fill-opacity", on ? "0.28" : "1");
+    });
+    box.querySelectorAll('.c13-peak[data-cls="' + cls + '"] line').forEach(l => {
+      l.setAttribute("stroke-width", on ? "4.5" : "2.2");
+    });
+  }
+  function wireC13Linking() {
+    document.addEventListener("pointerover", e => {
+      const t = e.target.closest && e.target.closest("[data-cls]");
+      if (!t) return;
+      const box = t.closest(".pc-structure");
+      if (box) markClass(box, t.getAttribute("data-cls"), true);
+    });
+    document.addEventListener("pointerout", e => {
+      const t = e.target.closest && e.target.closest("[data-cls]");
+      if (!t) return;
+      const box = t.closest(".pc-structure");
+      if (box) markClass(box, t.getAttribute("data-cls"), false);
+    });
+    document.addEventListener("click", e => {
+      const t = e.target.closest && e.target.closest("[data-cls]");
+      if (!t) return;
+      const box = t.closest(".pc-structure");
+      if (!box) return;
+      const out = box.querySelector(".pc-c13detail");
+      if (!out) return;
+      let data;
+      try { data = JSON.parse(box.getAttribute("data-c13") || "[]"); } catch (err) { return; }
+      const row = data.find(d => String(d.classId) === t.getAttribute("data-cls"));
+      if (!row) return;
+      const rows = row.terms.map(x =>
+        `<tr><td style="text-align:right">${esc(x.fa)}</td>` +
+        `<td class="en" style="text-align:left;direction:ltr">${x.v > 0 ? "+" : ""}${x.v}</td></tr>`).join("");
+      out.innerHTML = `<div class="note blue" style="margin-top:6px;text-align:right">
+        <b>${esc(row.kind)} — پیش‌بینی ${row.delta.toFixed(1)} ppm</b>
+        <table style="margin:6px 0 0;width:100%">${rows}
+          <tr><th style="text-align:right">جمع</th>
+              <th class="en" style="text-align:left;direction:ltr">${row.delta.toFixed(1)}</th></tr>
+        </table>
+        <small style="color:var(--muted)">قاعدهٔ افزایشی است، نه اندازه‌گیری؛ خطای میانگینش روی همین بانک ~۵ ppm است.</small>
+      </div>`;
+      out.hidden = false;
+    });
   }
 
   function problemCard(p, opts) {
@@ -366,6 +444,7 @@
     if (s) s.addEventListener("input", renderBank);
     const qi = el("field-quick-input");
     if (qi) qi.addEventListener("keydown", (e) => { if (e.key === "Enter") runQuickFormula(); });
+    wireC13Linking();
   }
 
   if (document.readyState === "loading")
