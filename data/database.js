@@ -44,6 +44,11 @@ const DB = {
     { id: "cooh",      fa: "کربوکسیلیک اسید", en:"-COOH",    atoms:{C:1,H:1,O:2},  slots:1, ihd:1, kind:"terminal", display:"COOH", evidence:["ir_oh_acid","h_acid","c_ester","wet_sol_a1"] },
     { id: "ester_co",  fa: "استر (کربونیل)", en:"-C(=O)O-",  atoms:{C:1,O:2},      slots:2, ihd:1, kind:"linker",   display:"COO",  evidence:["ir_co_ester","c_ester","wet_hydroxamic_pos"] },
     { id: "amide",     fa: "آمید",        en: "-C(=O)NH₂",   atoms:{C:1,H:2,N:1,O:1},slots:1,ihd:1, kind:"terminal", display:"CONH₂",evidence:["ir_co_amide","ir_nh","c_ester"] },
+    /* آمیدِ ثانویه، یعنی همان پیوندِ پپتیدی. بلوکِ amide فقط یک نقطهٔ
+       اتصال دارد و نیتروژنش آزاد است، پس N-متیل‌استامید و گلیسیل‌گلیسین
+       و فناستین با آن نوشتنی نبودند و ناچار با ketone نوشته می‌شدند —
+       که شاهدِ IR را هم جابه‌جا می‌کرد (۱۷۱۵ کتونی به‌جای ۱۶۵۰ آمیدی). */
+    { id: "amide_n",   fa: "آمید ثانویه (پل)", en: "-C(=O)NH-", atoms:{C:1,H:1,N:1,O:1}, slots:2, ihd:1, kind:"linker", display:"CONH", evidence:["ir_co_amide","ir_nh","c_ester"] },
     { id: "acyl",      fa: "استیل/آسیل",  en: "-COCH₃",      atoms:{C:2,H:3,O:1},  slots:1, ihd:1, kind:"terminal", display:"COCH₃",evidence:["ms_43","ir_co_ketone"] },
 
     // --- هترواتم‌دار ---
@@ -62,6 +67,21 @@ const DB = {
     { id: "ch2",       fa: "متیلن",       en: "-CH₂-",       atoms:{C:1,H:2},      slots:2, ihd:0, kind:"linker",   display:"CH₂",  evidence:["dept_ch2"] },
     { id: "ch",        fa: "متین",        en: ">CH-",        atoms:{C:1,H:1},      slots:3, ihd:0, kind:"branch",   display:"CH",   evidence:["dept_ch"] },
     { id: "vinyl",     fa: "وینیل",       en: "-CH=CH₂",     atoms:{C:2,H:3},      slots:1, ihd:1, kind:"terminal", display:"CH=CH₂",evidence:["h_vinyl"] },
+
+    /* پیوندِ دوگانهٔ *درونی*. تا پیش از این تنها بلوکِ آلکنی «vinyl» بود
+       که فقط یک نقطهٔ اتصال دارد، یعنی صرفاً –CH=CH₂ انتهایی. هر آلکنِ
+       درونی — سینامالدهید، مزیتیل اکسید، سیکلوهگزنون، مالئیک/فوماریک —
+       ناچار با ch/ch₂ نوشته می‌شد و اسکلتِ سرِهم‌شده اشباع درمی‌آمد: فرمول
+       درست، ساختار غلط. این چهار بلوک همان شکافند، به تفکیکِ درجهٔ استخلاف. */
+    { id: "alkene_ch_ch", fa: "آلکن درونی (۱،۲-دواستخلافی)", en: "-CH=CH-", atoms:{C:2,H:2}, slots:2, ihd:1, kind:"linker", display:"CH=CH", evidence:["h_vinyl"] },
+    { id: "alkene_c_ch",  fa: "آلکن سه‌استخلافی", en: ">C=CH-",  atoms:{C:2,H:1}, slots:3, ihd:1, kind:"branch", display:"C=CH",  evidence:["h_vinyl"] },
+    { id: "alkene_c_c",   fa: "آلکن چهاراستخلافی", en: ">C=C<",  atoms:{C:2},     slots:4, ihd:1, kind:"branch", display:"C=C",   evidence:[] },
+    { id: "alkene_c_ch2", fa: "آلکن انتهایی دواستخلافی", en: ">C=CH₂", atoms:{C:2,H:2}, slots:2, ihd:1, kind:"branch", display:"C=CH₂", evidence:["h_vinyl"] },
+
+    /* پایانهٔ هیدروژن. بعضی ترکیب‌ها *خودشان* یک بلوک‌اند — نفتالن، کینولین —
+       و زنجیرهٔ تک‌بلوکی‌شان نقطهٔ اتصالِ پُرنشده داشت، پس هیچ گرافِ معتبری
+       نداشت و ماژولِ تقارن ساکت می‌ماند. این بلوک همان نقطه را می‌بندد. */
+    { id: "h",         fa: "هیدروژن (پایانه)", en: "-H",     atoms:{H:1},     slots:1, ihd:0, kind:"terminal", display:"H",     evidence:[] },
 
     // --- افزوده‌های نسخه ۳: فلوئور، استوکسی، هترو-آروماتیک ---
     { id: "cf3",       fa: "تری‌فلوئورومتیل", en: "-CF₃",     atoms:{C:1,F:3},      slots:1, ihd:0, kind:"terminal", display:"CF₃",  evidence:["ir_cf"] },
@@ -147,6 +167,13 @@ const DB = {
     ch:         { smiles: "C",            attach: [0, 0, 0] },
     cq:         { smiles: "C",            attach: [0, 0, 0, 0] },
     vinyl:      { smiles: "C=C",          attach: [0] },
+    // هر چهار آلکنِ درونی یک SMILES دارند و فقط شمارِ نقطه‌های اتصال روی
+    // دو کربنِ sp² فرق می‌کند — همان الگویی که حلقهٔ بنزن دارد.
+    alkene_ch_ch:  { smiles: "C=C",       attach: [0, 1] },
+    alkene_c_ch:   { smiles: "C=C",       attach: [0, 0, 1] },
+    alkene_c_c:    { smiles: "C=C",       attach: [0, 0, 1, 1] },
+    alkene_c_ch2:  { smiles: "C=C",       attach: [0, 0] },
+    h:          { smiles: "[H]",          attach: [0] },
     alkyne_internal: { smiles: "C#C",     attach: [0, 1] },
     cf3:        { smiles: "C(F)(F)F",     attach: [0] },
 
@@ -178,6 +205,7 @@ const DB = {
     cooh:         { smiles: "C(=O)O",     attach: [0] },
     ester_co:     { smiles: "C(=O)O",     attach: [0, 2] },  // کربونیل، سپس اکسیژن
     amide:        { smiles: "C(=O)N",     attach: [0] },
+    amide_n:      { smiles: "C(=O)N",     attach: [0, 2] },
     acyl:         { smiles: "C(=O)C",     attach: [0] },
     acetoxy:      { smiles: "OC(=O)C",    attach: [0] },
     formate:      { smiles: "OC=O",       attach: [0] },
@@ -248,6 +276,7 @@ const DB = {
     cooh:        ["c_ester"],
     ester_co:    ["c_ester", "ir_co_single"],
     amide:       ["c_ester"],
+    amide_n:     ["c_ester"],
     acetoxy:     ["c_ester", "ir_co_single", "c_alkyl"],
 
     // هترواتم‌دار: کششِ C–O در ۱۰۰۰–۱۳۰۰ برای هر اتصال اکسیژن قطعی است

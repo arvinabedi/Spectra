@@ -34,7 +34,8 @@ const vm = require("vm");
 const ROOT = path.join(__dirname, "..");
 const DATA_FILES = [
   "data/database.js", "data/field-data.js", "data/field-osfs-table.js",
-  "data/database-expansion.js", "data/database-signatures.js"
+  "data/database-expansion.js", "data/database-signatures.js",
+  "data/bond-graphs.js"
 ];
 const CODE_FILES = [
   "js/app.js", "js/inference.js", "js/calculators.js", "js/renderer.js",

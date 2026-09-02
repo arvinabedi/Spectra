@@ -971,6 +971,140 @@
     return { svg: s, palette: SYM_PALETTE };
   }
 
+  /* =====================================================================
+     moleculeSVG — ساختارِ اسکلتیِ واقعی
+     ---------------------------------------------------------------------
+     symmetrySVG هر اتم را یک دایرهٔ برچسب‌دار می‌کشد. برای «نقشهٔ تقارن»
+     خوب است، ولی ساختارِ شیمیایی آن‌طور که در کتاب کشیده می‌شود نیست:
+     کربن‌ها باید گره باشند نه حرف، حلقهٔ آروماتیک حلقهٔ داخلی می‌خواهد،
+     و پیوندِ دوگانهٔ درونِ حلقه باید به سمتِ داخلِ حلقه بیفتد.
+
+     ورودی خروجیِ Structure.depict است (که مختصاتش هندسی است نه فنری).
+     opts.mode === "symmetry" اتم‌ها را به رنگِ کلاسِ هم‌ارزی می‌کشد، تا
+     دانشجو ببیند چرا ¹³C فلان تعداد پیک دارد؛ حالتِ پیش‌فرض تک‌رنگ است.
+     ===================================================================== */
+  const HET_LABEL = { O: 1, N: 1, S: 1, P: 1, F: 1, Cl: 1, Br: 1, I: 1, B: 1 };
+  const SUB = { 0: "₀", 1: "₁", 2: "₂", 3: "₃", 4: "₄", 5: "₅", 6: "₆", 7: "₇", 8: "₈", 9: "₉" };
+  function subscript(n) { return String(n).split("").map(d => SUB[d] || d).join(""); }
+
+  function moleculeSVG(data, opts) {
+    if (!data || !data.atoms || !data.atoms.length) return "";
+    opts = opts || {};
+    const A = data.atoms, B = data.bonds || [];
+    const symMode = opts.mode === "symmetry";
+    const W = opts.width || 320, maxH = opts.height || 220;
+
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    A.forEach(a => {
+      minX = Math.min(minX, a.x); maxX = Math.max(maxX, a.x);
+      minY = Math.min(minY, a.y); maxY = Math.max(maxY, a.y);
+    });
+    const pad = 22, spanX = (maxX - minX) || 1, spanY = (maxY - minY) || 1;
+    const scale = Math.min((W - 2 * pad) / spanX, (maxH - 2 * pad) / spanY, 1.5);
+    const Hh = spanY * scale + 2 * pad;
+    const tx = x => pad + (x - minX) * scale;
+    const ty = y => pad + (y - minY) * scale;
+
+    /* کدام اتم برچسب می‌گیرد: هترواتم‌ها همیشه، و کربن هرگز — مگر در
+       حالتِ تقارن که همه باید رنگ و برچسب داشته باشند. */
+    const labelled = A.map(a => symMode || !!HET_LABEL[a.el]);
+    const labelOf = a => {
+      if (a.el === "C" && !symMode) return "";
+      let t = a.el;
+      if (a.H > 0 && (a.el !== "C" || symMode)) t += "H" + (a.H > 1 ? subscript(a.H) : "");
+      if (a.charge > 0) t += a.charge > 1 ? subscript(a.charge) + "+" : "+";
+      if (a.charge < 0) t += a.charge < -1 ? subscript(-a.charge) + "−" : "−";
+      return t;
+    };
+    const colOf = a => symMode ? SYM_PALETTE[a.classId % SYM_PALETTE.length] : COL.bond;
+
+    /* خط را از مرکزِ اتمِ برچسب‌دار عقب می‌کشیم تا روی حروف نیفتد */
+    const GAP = symMode ? 15 : 10;
+    function trim(x1, y1, x2, y2, i, j) {
+      const dx = x2 - x1, dy = y2 - y1, d = Math.hypot(dx, dy) || 1;
+      const g1 = labelled[i] ? GAP : 0, g2 = labelled[j] ? GAP : 0;
+      return [x1 + (dx / d) * g1, y1 + (dy / d) * g1,
+              x2 - (dx / d) * g2, y2 - (dy / d) * g2];
+    }
+
+    /* مرکزِ هر حلقه، برای این‌که پیوندِ دوگانهٔ درونِ حلقه به سمتِ داخل
+       بیفتد و حلقهٔ آروماتیک دایرهٔ داخلی بگیرد. */
+    const rings = data.rings || [];
+    const ringInfo = rings.map(r => {
+      let cx = 0, cy = 0;
+      r.forEach(k => { cx += A[k].x; cy += A[k].y; });
+      return { atoms: new Set(r), cx: cx / r.length, cy: cy / r.length,
+               arom: r.every(k => A[k].arom) };
+    });
+    const ringOf = (i, j) => ringInfo.find(r => r.atoms.has(i) && r.atoms.has(j));
+
+    let s = `<svg direction="ltr" viewBox="0 0 ${W} ${Hh.toFixed(0)}" xmlns="${NS}" ` +
+            `font-family="Vazirmatn, Tahoma, sans-serif" role="img"`;
+    if (opts.title) s += ` aria-label="${escAttr(opts.title)}"`;
+    s += `>`;
+
+    const line = (x1, y1, x2, y2, w, c) =>
+      `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" ` +
+      `stroke="${c || COL.bond}" stroke-width="${w || 1.7}" stroke-linecap="round"/>`;
+
+    B.forEach(b => {
+      const [x1, y1, x2, y2] = trim(tx(A[b.a].x), ty(A[b.a].y), tx(A[b.b].x), ty(A[b.b].y), b.a, b.b);
+      const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
+      const ox = (-dy / len) * 3.4, oy = (dx / len) * 3.4;
+      const ring = ringOf(b.a, b.b);
+
+      if (b.order === 2) {
+        if (ring) {
+          // خطِ دوم به سمتِ مرکزِ حلقه، کمی کوتاه‌تر — قراردادِ کتابی
+          const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+          const toC = { x: tx(ring.cx) - mx, y: ty(ring.cy) - my };
+          const sign = (toC.x * ox + toC.y * oy) >= 0 ? 1 : -1;
+          s += line(x1, y1, x2, y2);
+          s += line(x1 + sign * ox + dx * 0.14, y1 + sign * oy + dy * 0.14,
+                    x2 + sign * ox - dx * 0.14, y2 + sign * oy - dy * 0.14, 1.5);
+        } else {
+          s += line(x1 + ox, y1 + oy, x2 + ox, y2 + oy, 1.6);
+          s += line(x1 - ox, y1 - oy, x2 - ox, y2 - oy, 1.6);
+        }
+      } else if (b.order === 3) {
+        s += line(x1, y1, x2, y2, 1.6);
+        s += line(x1 + ox, y1 + oy, x2 + ox, y2 + oy, 1.4);
+        s += line(x1 - ox, y1 - oy, x2 - ox, y2 - oy, 1.4);
+      } else {
+        // پیوندِ آروماتیک هم خطِ ساده است؛ حلقهٔ داخلی پایین‌تر کشیده می‌شود
+        s += line(x1, y1, x2, y2);
+      }
+    });
+
+    // حلقهٔ داخلیِ آروماتیک
+    ringInfo.forEach(r => {
+      if (!r.arom) return;
+      let rad = Infinity;
+      r.atoms.forEach(k => {
+        rad = Math.min(rad, Math.hypot(tx(A[k].x) - tx(r.cx), ty(A[k].y) - ty(r.cy)));
+      });
+      s += `<circle cx="${tx(r.cx).toFixed(1)}" cy="${ty(r.cy).toFixed(1)}" r="${(rad * 0.62).toFixed(1)}" ` +
+           `fill="none" stroke="${COL.bond}" stroke-width="1.4" opacity="0.75"/>`;
+    });
+
+    A.forEach((a, i) => {
+      if (!labelled[i]) return;
+      const x = tx(a.x), y = ty(a.y), col = colOf(a), lbl = labelOf(a);
+      if (symMode) {
+        s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="13" fill="${col}" ` +
+             `fill-opacity="0.20" stroke="${col}" stroke-width="2"/>`;
+      } else {
+        // ماسکِ هم‌رنگِ زمینه تا خط از پشتِ حرف رد نشود
+        s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(lbl.length > 2 ? 13 : 10)}" fill="${WELL}"/>`;
+      }
+      s += `<text x="${x.toFixed(1)}" y="${(y + 4.2).toFixed(1)}" fill="${symMode ? col : COL.atom}" ` +
+           `font-size="12.5" font-weight="${symMode ? 700 : 600}" text-anchor="middle">${lbl}</text>`;
+    });
+
+    s += `</svg>`;
+    return symMode ? { svg: s, palette: SYM_PALETTE } : s;
+  }
+
   /* --- فلوچارت شماتیک شناسایی کلاسیک (طرح حلالیت شرینر) --- */
   function flowNode(x, y, w, txt, kind) {
     const col = kind === "q" ? COL.accent : kind === "res" ? "var(--plot-x)" : COL.ring;
@@ -1023,7 +1157,7 @@
   root.Renderer = {
     renderChain, renderFragmentChips, blockGlyph, splittingTree,
     renderCorrelationGrid, renderMixtureBars, renderIsotopePattern,
-    symmetrySVG, solubilityFlowchart, spectrumTrace
+    symmetrySVG, moleculeSVG, solubilityFlowchart, spectrumTrace
   };
   // نکته: نسخهٔ اصلی این خروجی CommonJS را نداشت (برخلاف structure.js) و
   // فقط در مرورگر (window.Renderer) قابل استفاده بود؛ برای یکدستی و

@@ -136,6 +136,30 @@
      صفحه ~۵۰٬۰۰۰ پیکسل ارتفاع می‌گرفت؛ اسکن کردن بانک عملاً ناممکن بود.
      open را وقتی نتیجهٔ جست‌وجو کم است باز می‌گذاریم (کاربر دنبال همان
      یک مورد است)، نه در حالت مرور کامل. */
+  /* ---------- ساختارِ اسکلتیِ ترکیب ----------
+     تا پیش از این، کارتِ بانک فقط فهرستِ قطعاتِ فارسی را نشان می‌داد
+     («پارا-فنیلن، کربونیل، متیل») و دانشجو باید خودش ساختار را در ذهن
+     سرِهم می‌کرد. حالا که هر رکورد گرافِ اتصالِ راستی‌آزمایی‌شده دارد
+     (data/bond-graphs.js)، همان مولکول کشیده می‌شود.
+
+     قاعدهٔ صداقت: moleculeOf فقط وقتی مولکول برمی‌گرداند که *همهٔ*
+     چیدمان‌های ممکن به یک ساختار برسند. اگر ساختار قطعی نباشد هیچ
+     نموداری کشیده نمی‌شود — نقشهٔ غلط از نبودِ نقشه بدتر است. */
+  function structureHTML(p) {
+    if (!window.Inference || !window.Structure || !window.Renderer) return "";
+    if (!Renderer.moleculeSVG || !Structure.depict || !Inference.moleculeOf) return "";
+    let svg = "";
+    try {
+      const mol = Inference.moleculeOf(p);
+      if (!mol) return "";
+      svg = Renderer.moleculeSVG(Structure.depict(mol), {
+        width: 300, height: 190, title: "ساختار " + (p.en || p.name || "")
+      });
+    } catch (e) { return ""; }
+    if (!svg) return "";
+    return `<div class="pc-structure" style="text-align:center;margin:2px 0 10px">${svg}</div>`;
+  }
+
   function problemCard(p, opts) {
     opts = opts || {};
     const clsFa = CLS_FA[p.cls] || p.cls || "";
@@ -155,6 +179,7 @@
       </summary>
       <div class="pc-body">
         <div class="pc-blocks">قطعات: ${(p.blocks || []).map(b => `<span class="frag-chip">${esc(b)}</span>`).join("")}</div>
+        ${structureHTML(p)}
         ${spectrumThumbsHTML(p)}
         <table class="pc-table">
           <tr><th>IR</th><td class="en">${esc(p.ir)}</td></tr>

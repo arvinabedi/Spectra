@@ -40,6 +40,7 @@ function load() {
   const ctx = vm.createContext(sandbox);
   for (const f of ["data/database.js", "data/field-data.js", "data/field-osfs-table.js",
                    "data/database-expansion.js", "data/database-signatures.js",
+                   "data/bond-graphs.js",
                    "js/structure.js",          // ماژولِ تقارن موتور از این می‌خواند
                    "js/inference.js"]) {
     vm.runInContext(fs.readFileSync(path.join(ROOT, f), "utf8"), ctx, { filename: f });

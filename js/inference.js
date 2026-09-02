@@ -349,12 +349,34 @@
 
        چیدمان‌هایی که به نگاشتِ اتمیِ یکسان می‌رسند یکی شمرده می‌شوند،
        پس ch2 با attach:[0,0] فقط یک حالت دارد نه دو. */
+    /* ref.slots (اختیاری) چیدمان را برای بلوکِ i میخ می‌کند: آرایه‌ای از
+       اندیسِ همسایه‌ها به همان ترتیبِ attach[0], attach[1], …
+
+       چرا لازم است: نقطه‌های اتصالِ بعضی بلوک‌ها *هم‌ارز نیستند*. ester_co
+       یعنی C(=O)O و attach آن روی کربنِ کربونیل و اکسیژنِ استری است — دو
+       جای شیمیاییِ متفاوت. برای [methyl, ester_co, ethyl] هر دو چیدمان
+       مولکولِ معتبر می‌دهند: اتیل استات و متیل پروپانوات. آرایهٔ bonds
+       نمی‌تواند این را حل کند، چون یال بینِ *بلوک*‌هاست نه بینِ اتم‌ها.
+       بدونِ این میخ، ترکیب‌هایی مثل اتیل استات برای همیشه «مبهم» می‌مانند.
+
+       چیدمانِ میخ‌شده باید جایگشتی از همان همسایه‌ها باشد، وگرنه نادیده
+       گرفته می‌شود و به حالتِ شمارشِ کامل برمی‌گردیم — دادهٔ خرابِ ورودی
+       نباید ساختارِ غلط بسازد. */
+    const pins = ref && ref.slots;
     const choices = [];
     let combos = 1;
     for (let i = 0; i < n; i++) {
       const list = adj[i].slice().sort((a, b) => a - b);
       const att = tpl[i].attach;
       if (list.length !== att.length) return null;     // ظرفیتِ اعلام‌شده نمی‌خواند
+      const pin = pins && pins[i];
+      if (Array.isArray(pin) && pin.length === list.length &&
+          pin.slice().sort((a, b) => a - b).join() === list.join()) {
+        const m = new Map();
+        pin.forEach((j, k) => m.set(j, att[k]));
+        choices.push([m]);
+        continue;
+      }
       const opts = [], seenKey = new Set();
       permute(att.slice(), arr => {
         const key = arr.join(",");
@@ -943,11 +965,40 @@
     return { evidence: [...ev], formulaObj, contradictions, references, candidates, traps };
   }
 
+  /* ---------- مولکولِ یک رکورد، برای *رسم* ----------
+     predictSymmetry فقط یک عدد می‌خواهد و اگر چیدمان‌ها به یک عدد برسند
+     راضی است. رسم سخت‌گیرتر است: دو چیدمانِ متفاوت که اتفاقاً هم‌عدد
+     شده‌اند دو مولکولِ متفاوت‌اند و کشیدنِ یکی‌شان یعنی نشان‌دادنِ ساختارِ
+     غلط. پس این‌جا اثرانگشتِ گراف مقایسه می‌شود، نه شمارش؛ و اگر یکی
+     نبود، چیزی برنمی‌گردانیم تا هیچ نموداری کشیده نشود. */
+  function moleculeOf(ref) {
+    const S = root.Structure;
+    if (!S || !ref || !ref.chain || !ref.chain.length) return null;
+    const byId = {};
+    (DB.blocks || []).forEach(b => { byId[b.id] = b; });
+    const chain = ref.chain.map(id => byId[id]);
+    if (chain.some(x => !x)) return null;
+    let mols = null;
+    try { mols = blockAssemblies(chain, ref); } catch (e) { return null; }
+    if (!mols || !mols.length) return null;
+    if (mols.length > 1) {
+      const fp = m => {
+        const cls = S.refineClasses(m);
+        return m.atoms.map((a, k) => a.el + (a.H || 0) + "#" + cls[k]).sort().join("|") +
+               "//" + m.bonds.map(b => b.order).sort().join(",");
+      };
+      const first = fp(mols[0]);
+      for (let i = 1; i < mols.length; i++) if (fp(mols[i]) !== first) return null;
+    }
+    return mols[0];
+  }
+
   const API = {
     deriveFromMass, massToFormulas, deriveFromAtoms, parseFormula, formulaString,
     impliedEvidence, topology, neighboursOf, inferTopology,   // بیرون‌داده برای ابزارهای ممیزی (tools/) atomsMass,
     collectEvidence, detectCore, assemble, matchReferences, connectivityScore,
-    detectContradictions, detectExamTraps, predictSymmetry, blockAssemblies, analyze
+    detectContradictions, detectExamTraps, predictSymmetry, blockAssemblies,
+    moleculeOf, analyze
   };
 
   if (typeof module !== "undefined" && module.exports) module.exports = API;

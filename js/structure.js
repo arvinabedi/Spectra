@@ -405,10 +405,346 @@
     return { atoms: outAtoms, bonds, legend, nClasses: uniq.length };
   }
 
+  /* ===================================================================
+     depict — مختصاتِ دوبعدیِ اسکلتی
+     -------------------------------------------------------------------
+     symmetryLayout مختصات را با نیروی فنر/دافعه می‌سازد. برای شمردنِ
+     محیط‌ها کافی است، ولی شکلی که بیرون می‌دهد ساختارِ شیمیایی نیست:
+     طولِ پیوندها ناهموار است، حلقهٔ بنزن شش‌ضلعیِ منظم درنمی‌آید و حلقهٔ
+     جوش‌خورده در هم می‌رود. برای *نمایش* ساختار همان قواعدی لازم است که
+     یک شیمیدان روی کاغذ به کار می‌برد:
+
+       ۱) حلقه‌ها اول، به‌صورت چندضلعیِ منظم؛
+       ۲) حلقهٔ جوش‌خورده روی همان یالِ مشترک، آن‌سوی حلقهٔ قبلی؛
+       ۳) زنجیره‌ها زیگزاگ، هر شاخه در بازترین زاویهٔ ممکن؛
+       ۴) و آخر، چند گامِ کوتاهِ رفعِ هم‌پوشانی که اتم‌های حلقه را
+          تکان نمی‌دهد (وگرنه شش‌ضلعی دوباره خراب می‌شود).
+
+     خروجی همان شکلِ symmetryLayout است تا Renderer هر دو را بخورد.
+     =================================================================== */
+  const BOND_LEN = 42;
+
+  function adjacency(mol) {
+    const adj = mol.atoms.map(() => []);
+    mol.bonds.forEach(b => {
+      adj[b.a].push({ to: b.b, order: b.order });
+      adj[b.b].push({ to: b.a, order: b.order });
+    });
+    return adj;
+  }
+
+  /* SSSR سبک — نامش عمداً sssrRings است نه findRings: بالاتر در همین
+     فایل یک findRings(mol, maxSize) هست که normalizeResonance صدایش
+     می‌زند و امضایش فرق دارد. هم‌نام‌شدن، آن یکی را بی‌صدا می‌پوشاند و
+     شمارشِ تقارن را از کار می‌اندازد.
+     برای هر یال، کوتاه‌ترین مسیرِ بینِ دو سرش *بدونِ آن یال*
+     یک حلقه می‌دهد. حلقه‌ها را از کوچک به بزرگ نگه می‌داریم و هر کدام را
+     که یالِ تازه‌ای نیاورد دور می‌ریزیم — همان تعدادی می‌ماند که فرمولِ
+     اویلر می‌گوید (|E| − |V| + اجزا). */
+  function sssrRings(mol, adj) {
+    const n = mol.atoms.length;
+    const target = mol.bonds.length - n + countComponents(n, adj);
+    if (target <= 0) return [];
+    const found = [];
+    for (const bond of mol.bonds) {
+      const path = shortestPath(adj, bond.a, bond.b, bond);
+      if (path) found.push(path);
+    }
+    found.sort((x, y) => x.length - y.length);
+    const rings = [], covered = new Set();
+    for (const r of found) {
+      if (rings.length >= target) break;
+      const key = r.slice().sort((a, b) => a - b).join(",");
+      if (covered.has(key)) continue;
+      covered.add(key);
+      rings.push(r);
+    }
+    return rings;
+  }
+  function countComponents(n, adj) {
+    const seen = new Array(n).fill(false);
+    let c = 0;
+    for (let i = 0; i < n; i++) {
+      if (seen[i]) continue;
+      c++; const st = [i]; seen[i] = true;
+      while (st.length) {
+        const k = st.pop();
+        for (const e of adj[k]) if (!seen[e.to]) { seen[e.to] = true; st.push(e.to); }
+      }
+    }
+    return c;
+  }
+  function shortestPath(adj, from, to, skipBond) {
+    const prev = new Map([[from, -1]]);
+    const q = [from];
+    while (q.length) {
+      const v = q.shift();
+      if (v === to) break;
+      for (const e of adj[v]) {
+        // یالی که حلقه را با آن می‌بندیم نباید خودش مسیر شود
+        if ((v === skipBond.a && e.to === skipBond.b) ||
+            (v === skipBond.b && e.to === skipBond.a)) continue;
+        if (prev.has(e.to)) continue;
+        prev.set(e.to, v); q.push(e.to);
+      }
+    }
+    if (!prev.has(to)) return null;
+    const path = []; let v = to;
+    while (v !== -1) { path.push(v); v = prev.get(v); }
+    return path;                                   // ترتیبِ دورِ حلقه
+  }
+
+  function depict(mol) {
+    const n = mol.atoms.length;
+    if (!n) return { atoms: [], bonds: [], legend: [], nClasses: 0 };
+    const adj = adjacency(mol);
+    const rings = sssrRings(mol, adj);
+    const pos = new Array(n).fill(null);
+
+    /* --- سامانه‌های حلقوی: حلقه‌هایی که اتمِ مشترک دارند با هم چیده
+       می‌شوند، وگرنه نفتالن دو شش‌ضلعیِ جدا از هم می‌شود. --- */
+    const systems = [];
+    rings.forEach(r => {
+      const hit = systems.filter(s => s.some(rr => rr.some(a => r.indexOf(a) >= 0)));
+      if (!hit.length) { systems.push([r]); return; }
+      const merged = hit.reduce((acc, s) => acc.concat(s), [r]);
+      for (const s of hit) systems.splice(systems.indexOf(s), 1);
+      systems.push(merged);
+    });
+
+    let originX = 0;
+    for (const sys of systems) {
+      placeRingSystem(sys, pos, originX);
+      originX += 220;                              // سامانه‌های جدا کنارِ هم
+    }
+
+    /* --- ریشه اگر هیچ حلقه‌ای نبود --- */
+    if (!pos.some(p => p)) pos[0] = { x: 0, y: 0 };
+
+    /* --- زنجیره‌ها: BFS از هر اتمِ چیده‌شده ---
+       zig علامتِ خمِ بعدی را نگه می‌دارد. بدونِ آن، اتمی که فقط یک
+       همسایهٔ چیده‌شده دارد بچه‌اش را دقیقاً روبه‌رو می‌گذارد و زنجیره
+       خط‌کشی صاف می‌شود — سینامالدهید یک خطِ راست درمی‌آمد و دو پیوندِ
+       دوگانه‌اش روی هم می‌افتادند. */
+    const queue = [];
+    const zig = new Array(n).fill(1);
+    for (let i = 0; i < n; i++) if (pos[i]) queue.push(i);
+    let guard = 0;
+    while (queue.length && guard++ < n * 8) {
+      const v = queue.shift();
+      const free = adj[v].filter(e => !pos[e.to]);
+      if (!free.length) continue;
+      const used = adj[v].filter(e => pos[e.to])
+        .map(e => Math.atan2(pos[e.to].y - pos[v].y, pos[e.to].x - pos[v].x));
+      const dirs = freeDirections(used, free.length, zig[v]);
+      free.forEach((e, k) => {
+        pos[e.to] = { x: pos[v].x + Math.cos(dirs[k]) * BOND_LEN,
+                      y: pos[v].y + Math.sin(dirs[k]) * BOND_LEN };
+        zig[e.to] = -zig[v];
+        queue.push(e.to);
+      });
+    }
+    // هر اتمی که به هیچ‌جا وصل نبود (نمک، جزءِ جدا) کنار گذاشته می‌شود
+    for (let i = 0; i < n; i++) if (!pos[i]) pos[i] = { x: originX + i * 24, y: 90 };
+
+    relax(pos, adj, rings, mol);
+
+    /* --- کلاس‌های تقارن، همان قراردادِ symmetryLayout --- */
+    const cls = refineClasses(mol);
+    const uniq = [...new Set(cls)];
+    const classId = cls.map(c => uniq.indexOf(c));
+    const ringAtoms = new Set();
+    rings.forEach(r => r.forEach(a => ringAtoms.add(a)));
+    const outAtoms = mol.atoms.map((a, i) => ({
+      el: a.el, H: a.H, arom: a.arom, charge: a.charge || 0,
+      x: pos[i].x, y: pos[i].y, classId: classId[i], inRing: ringAtoms.has(i)
+    }));
+    const legend = [];
+    uniq.forEach((c, ci) => {
+      const members = mol.atoms.map((a, i) => ({ a, i })).filter(x => classId[x.i] === ci);
+      const rep = members[0].a;
+      legend.push({
+        classId: ci, count: members.length, el: rep.el, H: rep.H, arom: rep.arom,
+        kind: rep.el === "C" ? (rep.H === 3 ? "CH₃" : rep.H === 2 ? "CH₂" : rep.H === 1 ? "CH" : "C") : rep.el
+      });
+    });
+    return { atoms: outAtoms, bonds: mol.bonds, rings, legend, nClasses: uniq.length };
+  }
+
+  /* چندضلعیِ منظم برای حلقهٔ اول، و بازتاب روی یالِ مشترک برای بقیه */
+  function placeRingSystem(sys, pos, originX) {
+    const placed = [];
+    const remaining = sys.slice();
+    // حلقهٔ اول
+    const first = remaining.shift();
+    polygon(first, pos, originX, 0, null);
+    placed.push(first);
+
+    let guard = 0;
+    while (remaining.length && guard++ < sys.length * 4) {
+      let idx = remaining.findIndex(r => r.filter(a => pos[a]).length >= 2);
+      if (idx < 0) idx = remaining.findIndex(r => r.some(a => pos[a]));
+      if (idx < 0) { // جدا افتاده — کنارش می‌گذاریم
+        polygon(remaining.shift(), pos, originX + 200, 0, null);
+        continue;
+      }
+      const ring = remaining.splice(idx, 1)[0];
+      const anchor = ring.filter(a => pos[a]);
+      if (anchor.length >= 2) fuseRing(ring, pos);
+      else polygonAtSpiro(ring, pos, anchor[0]);
+    }
+  }
+
+  function polygon(ring, pos, cx, cy, startAngle) {
+    const m = ring.length;
+    const R = BOND_LEN / (2 * Math.sin(Math.PI / m));
+    const a0 = startAngle == null ? -Math.PI / 2 : startAngle;
+    ring.forEach((a, k) => {
+      if (pos[a]) return;
+      pos[a] = { x: cx + R * Math.cos(a0 + (2 * Math.PI * k) / m),
+                 y: cy + R * Math.sin(a0 + (2 * Math.PI * k) / m) };
+    });
+  }
+
+  /* حلقهٔ جوش‌خورده: مرکزش آن‌سوی یالِ مشترک می‌نشیند، سپس اتم‌های
+     نچیده روی همان دایره به ترتیبِ دورِ حلقه پخش می‌شوند. */
+  function fuseRing(ring, pos) {
+    const m = ring.length;
+    const R = BOND_LEN / (2 * Math.sin(Math.PI / m));
+    // یالِ مشترک: دو اتمِ چیده‌شدهٔ مجاور در همین حلقه
+    let i0 = -1;
+    for (let k = 0; k < m; k++) {
+      const a = ring[k], b = ring[(k + 1) % m];
+      if (pos[a] && pos[b]) { i0 = k; break; }
+    }
+    if (i0 < 0) return;
+    const A = pos[ring[i0]], B = pos[ring[(i0 + 1) % m]];
+    const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
+    const dx = B.x - A.x, dy = B.y - A.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const h = Math.sqrt(Math.max(R * R - (len / 2) * (len / 2), 0.01));
+    const nx = -dy / len, ny = dx / len;
+    // مرکز را آن سویی می‌گذاریم که از میانگینِ اتم‌های چیده‌شده دور باشد
+    let sx = 0, sy = 0, cnt = 0;
+    pos.forEach(p => { if (p) { sx += p.x; sy += p.y; cnt++; } });
+    const gx = cnt ? sx / cnt : 0, gy = cnt ? sy / cnt : 0;
+    const c1 = { x: mx + nx * h, y: my + ny * h };
+    const c2 = { x: mx - nx * h, y: my - ny * h };
+    const C = (Math.hypot(c1.x - gx, c1.y - gy) >= Math.hypot(c2.x - gx, c2.y - gy)) ? c1 : c2;
+    const startAng = Math.atan2(A.y - C.y, A.x - C.x);
+    // جهتِ چرخش را از اتمِ دوم می‌گیریم تا ترتیبِ حلقه حفظ شود
+    const nextAng = Math.atan2(B.y - C.y, B.x - C.x);
+    let step = nextAng - startAng;
+    while (step > Math.PI) step -= 2 * Math.PI;
+    while (step < -Math.PI) step += 2 * Math.PI;
+    const dir = step >= 0 ? 1 : -1;
+    for (let k = 0; k < m; k++) {
+      const a = ring[(i0 + k) % m];
+      if (pos[a]) continue;
+      pos[a] = { x: C.x + R * Math.cos(startAng + dir * k * (2 * Math.PI / m)),
+                 y: C.y + R * Math.sin(startAng + dir * k * (2 * Math.PI / m)) };
+    }
+  }
+
+  function polygonAtSpiro(ring, pos, shared) {
+    const m = ring.length;
+    const R = BOND_LEN / (2 * Math.sin(Math.PI / m));
+    const P = pos[shared];
+    const C = { x: P.x + R, y: P.y };
+    const a0 = Math.atan2(P.y - C.y, P.x - C.x);
+    const k0 = ring.indexOf(shared);
+    for (let k = 0; k < m; k++) {
+      const a = ring[(k0 + k) % m];
+      if (pos[a]) continue;
+      pos[a] = { x: C.x + R * Math.cos(a0 + k * (2 * Math.PI / m)),
+                 y: C.y + R * Math.sin(a0 + k * (2 * Math.PI / m)) };
+    }
+  }
+
+  /* زاویه‌های آزاد.
+     حالتِ «یک همسایهٔ چیده‌شده» جداگانه حل می‌شود، چون همان حالتی است که
+     زنجیره را می‌سازد: زاویهٔ پیوندِ کربنِ sp³ حدودِ ۱۰۹ و در نقشهٔ کاغذی
+     ۱۲۰ درجه کشیده می‌شود، پس شاخه در ±۱۲۰ درجه نسبت به پیوندِ ورودی
+     می‌نشیند نه روبه‌رویش. اگر روبه‌رو بگذاریم (که «بزرگ‌ترین شکاف» دقیقاً
+     همان را می‌دهد) زنجیره یک خطِ راست می‌شود. */
+  const DEG120 = (2 * Math.PI) / 3;
+  function freeDirections(used, count, zigSign) {
+    if (!used.length) {
+      const out = [];
+      for (let k = 0; k < count; k++) out.push((2 * Math.PI * k) / Math.max(count, 1));
+      return out;
+    }
+    if (used.length === 1) {
+      const back = used[0], z = zigSign || 1;
+      if (count === 1) return [back + z * DEG120];
+      if (count === 2) return [back + DEG120, back - DEG120];
+      if (count === 3) return [back + DEG120, back - DEG120, back + Math.PI];
+      // بیش از سه شاخه: دورِ جهتِ مقابل پخش می‌شوند
+      const out = [];
+      for (let k = 0; k < count; k++)
+        out.push(back + Math.PI + ((k - (count - 1) / 2) * 2 * Math.PI) / (count + 1));
+      return out;
+    }
+    const sorted = used.slice().sort((a, b) => a - b);
+    const gaps = [];
+    for (let i = 0; i < sorted.length; i++) {
+      const a = sorted[i];
+      const b = sorted[(i + 1) % sorted.length] + (i + 1 === sorted.length ? 2 * Math.PI : 0);
+      gaps.push({ from: a, size: b - a });
+    }
+    gaps.sort((x, y) => y.size - x.size);
+    const out = [];
+    let gi = 0;
+    while (out.length < count) {
+      const g = gaps[gi % gaps.length];
+      const share = Math.ceil(count / gaps.length);
+      for (let k = 1; k <= share && out.length < count; k++) {
+        out.push(g.from + (g.size * k) / (share + 1));
+      }
+      gi++;
+    }
+    return out;
+  }
+
+  /* رفعِ هم‌پوشانی. اتم‌های حلقه قفل‌اند: تکان‌دادنشان شش‌ضلعی را خراب
+     می‌کند و همان چیزی می‌شود که این تابع می‌خواست از آن فرار کند. */
+  function relax(pos, adj, rings, mol) {
+    const locked = new Set();
+    rings.forEach(r => r.forEach(a => locked.add(a)));
+    const n = pos.length;
+    const bonded = new Set();
+    mol.bonds.forEach(b => { bonded.add(b.a + "," + b.b); bonded.add(b.b + "," + b.a); });
+    for (let it = 0; it < 60; it++) {
+      const f = pos.map(() => ({ x: 0, y: 0 }));
+      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+        if (bonded.has(i + "," + j)) continue;
+        const dx = pos[i].x - pos[j].x, dy = pos[i].y - pos[j].y;
+        const d = Math.hypot(dx, dy) || 0.01;
+        if (d >= BOND_LEN * 0.9) continue;
+        const push = (BOND_LEN * 0.9 - d) * 0.35;
+        f[i].x += (dx / d) * push; f[i].y += (dy / d) * push;
+        f[j].x -= (dx / d) * push; f[j].y -= (dy / d) * push;
+      }
+      // پیوندها را نزدیکِ طولِ اسمی نگه می‌داریم
+      mol.bonds.forEach(b => {
+        const dx = pos[b.b].x - pos[b.a].x, dy = pos[b.b].y - pos[b.a].y;
+        const d = Math.hypot(dx, dy) || 0.01;
+        const pull = (d - BOND_LEN) * 0.25;
+        f[b.a].x += (dx / d) * pull; f[b.a].y += (dy / d) * pull;
+        f[b.b].x -= (dx / d) * pull; f[b.b].y -= (dy / d) * pull;
+      });
+      for (let i = 0; i < n; i++) {
+        if (locked.has(i)) continue;
+        pos[i].x += Math.max(-6, Math.min(6, f[i].x));
+        pos[i].y += Math.max(-6, Math.min(6, f[i].y));
+      }
+    }
+  }
+
   root.Structure = {
     parseSMILES, computeHydrogens, refineClasses, countEnvironments,
     degreeOfUnsaturation, molecularFormula, halogenIsotopePattern, flagDiastereotopicRisk,
-    symmetryLayout
+    symmetryLayout, depict
   };
   if (typeof module !== "undefined" && module.exports) module.exports = root.Structure;
 })(typeof window !== "undefined" ? window : globalThis);

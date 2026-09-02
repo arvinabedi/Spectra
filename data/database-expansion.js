@@ -117,7 +117,15 @@
     { id: "formate", fa: "فرمات (استرِ فرمیک)", en: "-OC(=O)H", atoms: { C: 1, H: 1, O: 2 },
       slots: 1, ihd: 1, kind: "terminal", display: "OCHO", evidence: ["ir_co_ester", "c_ester", "h_ald"] },
     { id: "fluorenyl_co", fa: "کربونیل فلوئورنونی", en: "فلوئورن-۹-اون", atoms: { C: 1, O: 1 },
-      slots: 2, ihd: 1, kind: "linker", display: "C=O", evidence: ["ir_co_conj", "c_ketone"] }
+      slots: 2, ihd: 1, kind: "linker", display: "C=O", evidence: ["ir_co_conj", "c_ketone"] },
+    /* نیمهٔ کربونیلیِ انیدرید. بلوکِ anhydride کلِ –CO–O–CO– را یک‌جا
+       می‌گیرد و دو نقطهٔ اتصالش روی دو کربنِ کربونیل است؛ در انیدریدِ
+       *حلقوی* هر دو به یک حلقهٔ بنزن می‌چسبند، یعنی دو یالِ موازی بینِ
+       دو بلوک — چیزی که گرافِ سادهٔ اسکلت نمی‌پذیرد و انیدرید فتالیک را
+       بی‌ساختار می‌گذاشت. با این بلوک، حلقه از اجزای جدا بسته می‌شود
+       (Ar–CO–O–CO–Ar) و شاهدِ IR انیدرید هم سرِ جایش می‌ماند. */
+    { id: "anhydride_co", fa: "کربونیل انیدرید (نیمه)", en: "-C(=O)-O-", atoms: { C: 1, O: 1 },
+      slots: 2, ihd: 1, kind: "linker", display: "C=O", evidence: ["c_ester", "ir_anhydride"] }
   ];
   NEW_BLOCKS.forEach(function (b) { if (!DB.blocks.some(function (x) { return x.id === b.id; })) DB.blocks.push(b); });
 
@@ -145,6 +153,7 @@
     propanoyl:       { smiles: "C(=O)CC",   attach: [0] },
     acidchloride:    { smiles: "C(=O)Cl",   attach: [0] },
     anhydride:       { smiles: "C(=O)OC=O", attach: [0, 3] },
+    anhydride_co:    { smiles: "C=O",       attach: [0, 0] },
     isocyanate:      { smiles: "N=C=O",     attach: [0] },
     amine2:          { smiles: "N",         attach: [0, 0] },
     alkyne_terminal: { smiles: "C#C",       attach: [0] },
@@ -193,6 +202,7 @@
     quinolinyl:      ["h_ar", "c_sp2", "ir_aromatic", "ir_cn_ring", "wet_elem_n"],
     // بلوک‌هایی که در فایل‌های قبلی اضافه شده بودند و جدولِ شواهد ضمنی نداشتند
     anhydride:       ["c_ester", "ir_anhydride"],
+    anhydride_co:    ["c_ester", "ir_anhydride"],
     acidchloride:    ["c_ester", "ir_acidcl"],
     isocyanate:      ["ir_isocyanate"],
     amine2:          ["ir_nh"],
@@ -298,12 +308,16 @@
     { block: "hydroxyl",
       cases: [
         { near: AROM, tags: ["wet_fecl3_pos", "wet_sol_a2"] },
-        { near: ["ketone", "aldehyde", "acyl", "propanoyl"],
+        // هیدروکسیل روی کربنِ sp² پیوندِ دوگانه هم انول است، حتی اگر
+        // کربونیل همسایهٔ *مستقیمش* نباشد: در ۲-هیدروکسی‌سیکلوهگزن-۱-اون
+        // OH روی خودِ آلکن می‌نشیند و کربونیل یک بلوک آن‌طرف‌تر است.
+        { near: ["ketone", "aldehyde", "acyl", "propanoyl",
+                 "vinyl", "alkene_ch_ch", "alkene_c_ch", "alkene_c_c", "alkene_c_ch2"],
           tags: ["wet_fecl3_pos"] },
         // benzyl (–CH₂C₆H₅) هم کربنِ sp³ است: الکلِ بنزیلی، نه فنول.
         // جاافتادنش باعث می‌شد الکلِ بنزیلی هیچ تستی نگیرد.
         { near: ["methyl", "ethyl", "npropyl", "butyl", "isopropyl", "tbutyl",
-                 "ch2", "ch", "cq", "hydroxyl", "ether_o", "vinyl", "benzyl"],
+                 "ch2", "ch", "cq", "hydroxyl", "ether_o", "benzyl"],
           tags: ["wet_lucas_any", "wet_can_pos"] }
       ],
       fa: "فنول (روی حلقه) / انول (مجاور کربونیل) / الکل (روی زنجیره) — سه نتیجهٔ تستِ متفاوت از یک بلوک" },
@@ -355,6 +369,11 @@
     { block: "amide", near: ["ch2", "ch"],
       tags: ["wet_biuret_pos"], elseTags: [],
       fa: "کربونیلِ آمیدی درونِ زنجیرهٔ اسید آمینه = پیوندِ پپتیدی؛ بیوره مثبت" },
+    // amide_n همان کربونیلِ آمیدی است ولی نیتروژنش هم استخلاف دارد —
+    // یعنی دقیقاً شکلِ پیوندِ پپتیدی. قاعده باید هر دو را ببیند.
+    { block: "amide_n", near: ["ch2", "ch"],
+      tags: ["wet_biuret_pos"], elseTags: [],
+      fa: "آمیدِ ثانویه بینِ دو کربنِ زنجیره = پیوندِ پپتیدی؛ بیوره مثبت" },
 
     { block: "amine1",
       near: AROM_CX,

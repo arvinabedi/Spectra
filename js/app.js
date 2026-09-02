@@ -333,6 +333,22 @@
       h += `<div class="empty-hint">با شواهد فعلی و این فرمول، ساختار سازگاری مونتاژ نشد. شواهد بیشتری در فازهای IR/NMR تیک بزنید یا فرمول را بازبینی کنید.</div>`;
     } else {
       const maxScore = res.candidates[0].score || 1;
+      /* ساختارِ کاندید: اگر کاندید به یک مرجعِ شناخته‌شده وصل باشد و
+         گرافِ اتصالش قطعی باشد، مولکولِ واقعی کشیده می‌شود. وگرنه همان
+         نوارِ موتیف‌های قبلی می‌ماند — که ساختار نیست، ترتیبِ بلوک‌هاست،
+         و برای کاندیدی که هنوز اتصالش معلوم نیست دقیقاً همان چیزی است
+         که باید نشان داده شود. */
+      const candidateStructure = (c) => {
+        if (c.ref && window.Structure && Structure.depict &&
+            Renderer.moleculeSVG && Inference.moleculeOf) {
+          try {
+            const mol = Inference.moleculeOf(c.ref);
+            if (mol) return Renderer.moleculeSVG(Structure.depict(mol),
+              { width: 300, height: 180, title: "ساختار " + (c.ref.en || c.ref.name || "") });
+          } catch (e) { /* به نوارِ موتیف برمی‌گردیم */ }
+        }
+        return Renderer.renderChain(c.chain);
+      };
       res.candidates.forEach((c, i) => {
         const pct = Math.max(8, Math.round((c.score / maxScore) * 100));
         const name = c.ref ? c.ref.name : "ساختار سازگار";
@@ -343,7 +359,7 @@
             <span class="cand-score">امتیاز سازگاری ${c.score} · <span class="en">${sub(c.formula)}</span></span>
           </div>
           <div class="cand-bar"><span style="width:${pct}%"></span></div>
-          <div class="cand-svg">${Renderer.renderChain(c.chain)}</div>
+          <div class="cand-svg">${candidateStructure(c)}</div>
           <div class="cand-note">فرمول فشرده: <span class="en">${c.condensed}</span>${c.ref && c.ref.note ? ` · <b>نکته تمایز:</b> ${c.ref.note}` : ''}</div>
           ${(c.connectivity && c.connectivity.length) ? `<div class="cand-conn">${c.connectivity.map(x =>
             `<span class="conn-row ${x.verdict}"><b>${x.verdict === "supports" ? "✓" : "✗"} ${x.fa}</b>${x.note ? `<span>${x.note}</span>` : ""}</span>`).join("")}</div>` : ''}
@@ -814,9 +830,23 @@
     show(out, h);
     const symBox = el("sym-diagram");
     if (symBox && typeof Renderer !== "undefined" && Renderer.symmetrySVG) {
-      const lay = Structure.symmetryLayout(smi);
+      /* مختصات از depict می‌آید نه از symmetryLayout: چیدمانِ فنری طولِ
+         پیوندها را ناهموار و شش‌ضلعی را کج می‌کرد، و همان تصویری که قرار
+         بود تقارن را *نشان* بدهد خودش نامتقارن درمی‌آمد. اگر depict در
+         دسترس نبود (نسخهٔ قدیمی‌ترِ structure.js) به همان چیدمانِ فنری
+         برمی‌گردیم تا این بخش هیچ‌وقت خالی نماند. */
+      let lay = null;
+      try {
+        if (Structure.depict) {
+          const mol = Structure.computeHydrogens(Structure.parseSMILES(smi));
+          if (mol.atoms.length) lay = Structure.depict(mol);
+        }
+      } catch (e) { lay = null; }
+      if (!lay) lay = Structure.symmetryLayout(smi);
       if (!lay.error) {
-        const rs = Renderer.symmetrySVG(lay);
+        const rs = (Renderer.moleculeSVG && lay.rings)
+          ? Renderer.moleculeSVG(lay, { mode: "symmetry", width: 560, height: 320 })
+          : Renderer.symmetrySVG(lay);
         const legend = lay.legend.map(l => {
           const col = rs.palette[l.classId % rs.palette.length];
           return `<span style="display:inline-flex;align-items:center;gap:5px;margin:2px 8px 2px 0;font-size:var(--fs-xs)"><span style="width:12px;height:12px;border-radius:50%;background:${col};display:inline-block"></span>${l.kind}${l.count > 1 ? " \u00d7" + l.count : ""}</span>`;
