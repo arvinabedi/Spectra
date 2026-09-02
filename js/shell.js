@@ -685,7 +685,14 @@
       scrim = document.createElement("div");
       scrim.className = "scrim";
       scrim.addEventListener("click", function () { drawerOpen(false); });
-      document.body.appendChild(scrim);
+      /* پرده باید *کنارِ خودِ کشو* بنشیند، نه روی body.
+         .shell با z-index:1 یک بافتِ چینشِ تازه می‌سازد، پس z-index:120
+         کشو فقط درونِ همان بافت معنی دارد. پرده روی body یعنی مقایسهٔ
+         واقعی «۱۱۰ پرده در برابر ۱ شل» است و پرده روی کلِ برنامه —
+         از جمله روی خودِ کشو — می‌افتد: منو تار می‌شد و کلیک هم
+         نمی‌گرفت. داخلِ shell، همان ۱۱۰ در برابر ۱۲۰ قرار می‌گیرد و
+         ترتیب درست می‌شود. */
+      (side.parentElement || document.body).appendChild(scrim);
     } else if (!on && scrim) scrim.remove();
   }
 

@@ -15,6 +15,24 @@
      تیره تقریباً ناپیدا می‌شد. بشقاب همان ‎#4b52d9‎ لانچر است، پس نشان روی
      هر زبانه‌ای یکسان و خوانا می‌ماند. -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234b52d9'/%3E%3Cg transform='translate(16 16) scale(.86) translate(-16 -15.5)' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 3 22.58 6.8v7.6L16 18.2 9.42 14.4V6.8z'/%3E%3Ccircle cx='16' cy='10.6' r='4.1' stroke-width='1.9'/%3E%3Cpath d='M3 28h5.6l2.3-5.6 2.3 5.6h1.2L16 21l1.6 7h1.2l2.3-5.6 2.3 5.6H29'/%3E%3C/g%3E%3C/svg%3E">
+<!-- پوسته باید *پیش از* اولین رنگ‌آمیزی تعیین شود.
+     پیش‌فرضِ برنامه روشن است، ولی CSS وقتی data-theme نباشد به
+     prefers-color-scheme می‌افتد؛ و shell.js تازه سرِ DOMContentLoaded
+     پوسته را می‌گذارد، یعنی بعد از پارس‌شدنِ همهٔ اسکریپت‌ها. نتیجه روی
+     دستگاهی که سیستمش تاریک است: صفحه یک لحظه تیره می‌آید و بعد روشن
+     می‌شود. این چند خط همان کارِ shell.js را می‌کند، فقط زودتر — و چون
+     inline است، هیچ درخواستی هم اضافه نمی‌کند. -->
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem("spectra.theme.v1") || "light";
+      if (t === "light" || t === "dark")
+        document.documentElement.setAttribute("data-theme", t);
+    } catch (e) {
+      document.documentElement.setAttribute("data-theme", "light");
+    }
+  })();
+</script>
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
